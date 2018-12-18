@@ -29,6 +29,7 @@ function loadpharmacydata(;redownload=false, regeocode=false)
     bc = DataFrame(txt, [:name, :address, :manager, :phone, :fax])
     bc[:street] = (a->replace(a, r"(.+)\n(.+), BC.+\n.+"s => s"\1")).(bc[:address])
     bc[:city]   = (a->replace(a, r".+\n(.+), BC.+\n.+"s => s"\1")).(bc[:address])
+    bc[:zip]  =     (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).+"s => s"\1 \2")).(bc[:address])
     bc[:zip]    = (a->replace(a, r".+(\p{L}\d\p{L} \d\p{L}\d).+"s => s"\1")).(bc[:address])
     bc[:province] = "BC" 
     
@@ -54,8 +55,9 @@ function loadpharmacydata(;redownload=false, regeocode=false)
                    [:name, :address, :manager,:phone, :fax, :street])
     mb[:province] = "MB"
     mb[:city] = (a->replace(a, r"(^.+), M.+" => s"\1")).(mb[:address])
-    mb[:zip]  = (a->match(r"(\p{L}\d\p{L} \d\p{L}\d)",a).match).(mb[:address])
-    
+    mb[:zip]  =     (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).+"s => s"\1 \2")).(mb[:address])
+
+
     
     ## Additional province data can be found from links at
     ## https://www.pharmacists.ca/pharmacy-in-canada/directory-of-pharmacy-organizations/provincial-regulatory-authorities1/
@@ -66,16 +68,21 @@ function loadpharmacydata(;redownload=false, regeocode=false)
     println("reading pharmacy data from $csvfile")
     df = CSV.read(csvfile)
   end
-
-  if (false) #(regeocode || !(:lat ∈ names(df)))
+  
+  if (regeocode || !(:lat ∈ names(df)))
     ## Look up latitude and longitude of each pharmacy    
     df[:address] =  (df[:street].*", ".*df[:city] .* ", " .*
                      df[:province] .* "  " .* df[:zip] .* ", Canada") 
     geocode!(df, :address)
     CSV.write(csvfile, df)
+    # TODO: we could validate these locations against statcan Forward
+    # sortation areas (first 3 characters of zip code) shapefile.
+    # https://www12.statcan.gc.ca/census-recensement/2011/geo/bound-limit/bound-limit-2016-eng.cfm    
   end
-  df   
+  df
 end
+
+
 
 
 

@@ -1,13 +1,16 @@
 module PharmacyEntry
 
-using DataFrames, HTTP, Gumbo, Cascadia, CSV, PyCall, LightXML, Statistics
+using DataFrames, HTTP, Gumbo, Cascadia, CSV, PyCall, LightXML,
+  Statistics, PlotlyJS
 import ArchGDAL, Geodesy
 
 export
   loadpharmacydata,
   loadcensusdata,
   loaddistancematrix,
-  geocode!
+  geocode!,
+  plotmap,
+  checklatlng!
 
 include("geo.jl")
 include("pharmacies.jl")

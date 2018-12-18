@@ -53,67 +53,160 @@ function geocode!(df::AbstractDataFrame,
   df
 end
 
-## construct geographic markets using map data from google
-# We use the Python client for Google map services, see
-#  https://github.com/googlemaps/google-maps-services-python
-# You will need an API key for this, see google's docs for info.
+
+################################################################################
 #
-# 
-function loaddistancematrix(;redownload=false)
-  csvfile=normpath(joinpath(@__DIR__,"..","data","distancematrix.csv"))
-  if (redownload || !isfile(csvfile))
-    # create googlemaps client
-    googlemaps = pyimport("googlemaps") # you must install googlemaps, e.g.  `$ pip install -U googlemaps`
-    if (!isflie("googleDistanceMatrix.key"))
-      error("\"googleDistanceMatrix.key\" file not found. Obtain a".*
-            " Google DistanceMatrix API and save it in a text file".*
-            " with this name.")
-    end
-    keyfile = open("googleDistanceMatrix.key")
-    gkey = read(keyfile, String);
-    close(keyfile)
-    gmaps = googlemaps.Client(key = gkey)
+# I gave up on using google maps for this project. It seems like
+# storing query results would violate Google's TOS. Also, getting the
+# distance matrix for all 1000 pharmacies by 1000 populations =
+# 1,000,000 queries = $5,000! Of course many of these queries could be
+# avoided by e.g. only doing ones within X straightline distance, but
+# it'll still cost around $25 and violate the TOS.
+#
+################################################################################
 
-    # create well formatted addresses for each pharmacy    
-    function addressstring(df)
-      df[:street].*", ".*df[:city].*", ".*df[:province].*", ".*df[:zip]
-    end
-    pharm[:address] = addressstring(pharm)
+""" 
+     plotmap(census, pharm)
 
+Plots map of census population centers and pharmacies. 
+"""
+function plotmap(census, pharm)
   
-    provinceabbr = Dict("Newfoundland and Labrador" => "NL",
-                        "Prince Edward Island" => "PE",
-                        "Nova Scotia" => "NS",
-                        "New Brunswick" => "NB",
-                        "Quebec" => "QC",
-                        "Ontario" => "ON",
-                        "Manitoba" => "MB",
-                        "Saskatchewan" => "SK",
-                        "Alberta" => "AB",
-                        "British Columbia" => "BC",
-                        "Yukon" => "YT",
-                        "Northwest Territories" => "NT",
-                        "Nunavut" => "NU")
-    abbrprovince = Dict()
-    for key in keys(provinceabbr)
-      abbrprovince[provinceabbr[key]] = key
-    end
-    # look up distances separately for each province to limit requests
-    for pv in unique(pharm[:province])
-      ph = pharm[pharm[:province].==pv,:]
+  trace = scattergeo(;locationmode="ISO-3",
+                     lat=census[:lat],
+                     lon=census[:lng],
+                     hoverinfo="text",
+                     text=[string(x[:GEO_NAME], " pop: ", x[Symbol("Population, 2016")]) for x in eachrow(census)],
+                     marker_size=log.(census[Symbol("Population, 2016")]),
+                     marker_line_color="black", marker_line_width=2)
+  idx  = pharm[:zipmatch]
+  tp1 = scattergeo(;lat=pharm[:lat][idx], lon=pharm[:lng][idx],
+                  marker_size = 3,
+                  marker_color="green")
+  tp2 = scattergeo(;lat=pharm[:lat][.!idx], lon=pharm[:lng][.!idx],
+                   marker_size = 3,
+                   hoverinfo="text",
+                   text=[string(x[:address], " zip: ",
+                                x[:zip])
+                         for x in eachrow(pharm[.!idx,:])],
+                   marker_color="red")
 
-      # some population centres are on borders and have
-      # province1/province2 for PROV_TERR_NAME_NOM
-      pcensus = census[occursin.(abbrprovince[pv], 
-                                 census[:PROV_TERR_NAME_NOM]), :]
-      pcensus[:address] = (pcensus[:GEO_NAME].*", " .*pv)
-
-      #distances = gmaps[:distance_matrix](origins = ph[:address][1:2],
-      #                                    destinations = pcensus[:address][1:3],
-      #                                    mode = "driving",
-      #                                    units = "metric",
-      #                                   region = "ca")
-    end
+  tozipctr = Array{typeof(trace)}(undef,nrow(pharm))
+  for r in 1:nrow(pharm)
+    tozipctr[r] = scattergeo(;lat=[pharm[:lat][r], pharm[:ziplat][r]],
+                             lon= [pharm[:lng][r], pharm[:ziplng][r]],
+                             mode = "lines",
+                             color="black")
   end
   
+  geo = attr(scope="north america",
+             resolution = 50,
+             #projection_type="albers usa",
+             showland=true,
+             showrivers=true,
+             showlakes=true,
+             rivercolor="#fff",
+             lakecolor="#fff",
+             landcolor= "#EAEAAE",
+             countrycolor= "#d3d3d3",
+             countrywidth= 1.5,
+             subunitcolor= "#d3d3d3",
+             subunitwidth=1)
+  traces = [trace,tp1,tp2, tozipctr...]
+  println(typeof(traces))
+  println(length(traces))
+  layout = Layout(;title="Canada population centres and pharmacies", showlegend=false, geo=geo)
+  plot(traces, layout)
 end
+
+
+""" 
+    checklatlng(df::AbstractDataFrame,
+                lat::Symbol,
+                lng::Symbol,
+                zip::Symbol)
+
+Checks latitude and longitude in df[:lat] and df[:lng] against zip
+code in df[:zip]. 
+
+Output:
+  - Adds new variables to `df` 
+      - `:zipmatch::Bool` which is `true` if `df[:lat], df[:lng] ∈`
+        Forward sortation area of `df[:zip]`
+      - `:ziplat` and `:ziplng` latitude and longitude of centroid of
+        forward soration area of `df[:zip]`   
+
+"""
+function checklatlng!(df::AbstractDataFrame,
+                     lat::Symbol,
+                     lng::Symbol,
+                     zip::Symbol)
+  # statcan shapefile   
+  shpzip =
+    normpath(joinpath(@__DIR__,"..","data","lfsa000b16a_e.zip"))
+  if !isfile(shpzip)
+    download("http://www12.statcan.gc.ca/census-recensement/2011/geo/bound-limit/files-fichiers/2016/lfsa000b16a_e.zip",
+             shpzip)
+  end
+  shpfile = normpath(joinpath(@__DIR__,"..","data","lfsa000b16a_e.shp"))
+  if !isfile(shpfile)
+    unzippath = normpath(joinpath(@__DIR__,"..","data"))
+    # the next command will likely fail on windows, use some  other
+    # unzip progra
+    run(`unzip $shpzip -d $unzippath`) 
+  end
+  df[:zipmatch] = false
+  df[:ziplat] = 0.0
+  df[:ziplng] = 0.0
+  df[:fsa] = (x->replace(x,r"(\p{L}\d\p{L}).?(\d\p{L}\d)" => "\1")).(df[zip])
+  ArchGDAL.registerdrivers() do
+    ArchGDAL.read(shpfile) do sf
+      layer = ArchGDAL.getlayer(sf, 0)
+      nlayer = ArchGDAL.nfeature(layer)
+      for i in 0:(nlayer-1)
+        ArchGDAL.getfeature(layer, i) do feature
+          fsa = ArchGDAL.getfield(feature, 0)
+          m = findall(fsa.==df[:fsa])
+          if (length(m)>0)
+            geom = ArchGDAL.getgeomfield(feature,0)
+            ArchGDAL.importEPSG(3347) do source
+              ArchGDAL.importEPSG(4326) do target
+                ArchGDAL.createcoordtrans(source, target) do transform
+                  ArchGDAL.transform!(geom, transform)
+                end
+              end
+            end
+            cent = ArchGDAL.centroid(geom)
+            cent=ArchGDAL.toWKT(cent)
+            # convert string to Array{Float64,1}
+            cent = parse.(Float64,split(replace(cent, r"POINT |\)|\("
+                                                => "")," "))
+            df[:ziplng][m] .= cent[1]
+            df[:ziplat][m] .= cent[2]
+            for j in m             
+              if ismissing(df[lng][j])
+                df[:zipmatch][j] = false
+              else 
+                phgeom = ArchGDAL.createpoint(df[lng][j], df[lat][j])
+                df[:zipmatch][j] = ArchGDAL.contains(geom, phgeom)
+              end
+            end # for j
+          end # if length(m)>0
+        end # do feature
+      end # for i in 0:nlayer-1
+    end # do sf
+  end # do registerdrivers()
+
+  df
+end 
+
+
+function distzip(lng, lat, zlng, zlat)
+  if ismissing(lng)
+    missing
+  else 
+    distance(LLA(lng, lat), LLA(zlng,zlat))
+  end
+end
+pharm[:zipdist] = distzip.(pharm[:lng],pharm[:lat], pharm[:ziplng],
+                           pharm[:ziplat])
