@@ -6,12 +6,14 @@
 Optional arguments:
   - `redownload` if true, will redownload source files, else tries to
      load from data directory
+  - `regeocode` if true, will recreate geocodes, else loads from data
+     directory 
 
 Output:
   - DataFrame listing pharamacies and their addresses
 
 """
-function loadpharmacydata(;redownload=false)
+function loadpharmacydata(;redownload=false, regeocode=false)
   csvfile=normpath(joinpath(@__DIR__,"..","data","pharmacies.csv"))
   if (redownload || !isfile(csvfile))
     ## BC
@@ -57,11 +59,20 @@ function loadpharmacydata(;redownload=false)
     
     ## Additional province data can be found from links at
     ## https://www.pharmacists.ca/pharmacy-in-canada/directory-of-pharmacy-organizations/provincial-regulatory-authorities1/
-    df = vcat(bc,mb)
+    df = vcat(bc,mb)       
+    df[:id] = 1:nrow(df)    
     CSV.write(csvfile, df)
-  else
+  else     
     println("reading pharmacy data from $csvfile")
     df = CSV.read(csvfile)
+  end
+
+  if (false) #(regeocode || !(:lat ∈ names(df)))
+    ## Look up latitude and longitude of each pharmacy    
+    df[:address] =  (df[:street].*", ".*df[:city] .* ", " .*
+                     df[:province] .* "  " .* df[:zip] .* ", Canada") 
+    geocode!(df, :address)
+    CSV.write(csvfile, df)
   end
   df   
 end

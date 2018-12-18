@@ -4,6 +4,12 @@ git-tree-sha1 = "6621d9645702c1c4e6970cc6a3eae440c768000b"
 uuid = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
 version = "0.2.1"
 
+[[ArchGDAL]]
+deps = ["DataStreams", "Dates", "GDAL", "GeoInterface", "Statistics", "Test"]
+git-tree-sha1 = "0fa43be2cfe35f0691eb6abb95740024e6e69b05"
+uuid = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
+version = "0.1.0"
+
 [[Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
@@ -49,6 +55,12 @@ git-tree-sha1 = "fb86fe40cb5b35990e368709bfdc1b46dbb99dac"
 uuid = "8f4d0f93-b110-5947-807f-2305c1781a2d"
 version = "1.1.1"
 
+[[CoordinateTransformations]]
+deps = ["Compat", "Rotations", "StaticArrays"]
+git-tree-sha1 = "47f05d0b7f4999609f92e657147df000818c1f24"
+uuid = "150eb455-5306-5404-9cee-2592286d6298"
+version = "0.5.0"
+
 [[DataFrames]]
 deps = ["CategoricalArrays", "CodecZlib", "Compat", "DataStreams", "Dates", "InteractiveUtils", "IteratorInterfaceExtensions", "LinearAlgebra", "Missings", "Printf", "Random", "Reexport", "SortingAlgorithms", "Statistics", "StatsBase", "TableTraits", "Tables", "Test", "TranscodingStreams", "Unicode", "WeakRefStrings"]
 git-tree-sha1 = "41ec35bcf49a860706924b9b3e322eed03164c83"
@@ -82,6 +94,24 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 [[Future]]
 deps = ["Random"]
 uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
+
+[[GDAL]]
+deps = ["BinaryProvider", "Libdl", "Test"]
+git-tree-sha1 = "100429098b7ec9930f7db9ba68aee3495365be24"
+uuid = "add2ef01-049f-52c4-9ee2-e494f65e021a"
+version = "0.2.0"
+
+[[GeoInterface]]
+deps = ["RecipesBase"]
+git-tree-sha1 = "59d34b371abfeda6a876e7d5ad5a12ac45faf252"
+uuid = "cf35fbd7-0cd7-5166-be24-54bfbe79505f"
+version = "0.4.0"
+
+[[Geodesy]]
+deps = ["CoordinateTransformations", "Dates", "LinearAlgebra", "StaticArrays", "Test"]
+git-tree-sha1 = "f80ea86cb88db337a1906e245e495592f0b5cc25"
+uuid = "0ef565a4-170c-5f04-8de2-149903a85f3d"
+version = "0.5.0"
 
 [[Gumbo]]
 deps = ["AbstractTrees", "BinaryProvider", "Libdl", "Test"]
@@ -199,6 +229,12 @@ uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 deps = ["Serialization"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
+[[RecipesBase]]
+deps = ["Random", "Test"]
+git-tree-sha1 = "0b3cb370ee4dc00f47f1193101600949f3dcf884"
+uuid = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
+version = "0.6.0"
+
 [[Reexport]]
 deps = ["Pkg"]
 git-tree-sha1 = "7b1d07f411bc8ddb7977ec7f377b97b158514fe0"
@@ -210,6 +246,12 @@ deps = ["Test"]
 git-tree-sha1 = "f6fbf4ba64d295e146e49e021207993b6b48c7d1"
 uuid = "ae029012-a4dd-5104-9daa-d747884805df"
 version = "0.5.2"
+
+[[Rotations]]
+deps = ["LinearAlgebra", "Random", "StaticArrays", "Statistics", "Test"]
+git-tree-sha1 = "b629771d0de88979cbdbf72ceddc54de58fde149"
+uuid = "6038ab10-8711-5258-84ad-4b1120ba62dc"
+version = "0.9.1"
 
 [[SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
@@ -233,6 +275,12 @@ version = "0.3.1"
 [[SparseArrays]]
 deps = ["LinearAlgebra", "Random"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+
+[[StaticArrays]]
+deps = ["InteractiveUtils", "LinearAlgebra", "Random", "Statistics", "Test"]
+git-tree-sha1 = "97c4bf0f647488dd7ac01ea12be5885f88762938"
+uuid = "90137ffa-7385-5640-81b9-e52037218182"
+version = "0.10.0"
 
 [[Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]
