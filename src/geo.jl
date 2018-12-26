@@ -8,17 +8,17 @@ Geocodes addresses contained in `df[address]`. Adds latitutde in
 df[:lat], longitude in df[:lng], and accuracy in df[:llaccuracy]
 
 Uses geocod.io for geocoding. Requires a geocod.io API key and the
-pygeocodio Python module. 
+pygeocodio Python module.
 """
 function geocode!(df::AbstractDataFrame,
                   address::Symbol)
   if !isfile("geocodio.key")
     error("geocodio.key not found")
   end
-  keyfile = open("geocodio.key","r") 
+  keyfile = open("geocodio.key","r")
   key = read(keyfile, String);
-  close(keyfile)  
-  geocodio = pyimport("geocodio")  
+  close(keyfile)
+  geocodio = pyimport("geocodio")
   client = geocodio[:GeocodioClient](key)
   tmp = zeros(3,nrow(df))
   blocksize = 100
@@ -41,11 +41,11 @@ function geocode!(df::AbstractDataFrame,
   if (any(df[:llaccuracy].<0))
     df[:lat] = Array{Union{Missing, eltype(tmp)},1}(undef, nrow(df))
     df[:lng] = Array{Union{Missing, eltype(tmp)},1}(undef, nrow(df))
-  else 
+  else
     df[:lat] = Array{eltype(tmp),1}(undef, nrow(df))
     df[:lng] = Array{eltype(tmp),1}(undef, nrow(df))
   end
-    
+
   df[:lat] .= tmp[1,:]
   df[:lng] .= tmp[2,:]
   df[:lat][df[:llaccuracy].<0] .= missing
@@ -65,13 +65,13 @@ end
 #
 ################################################################################
 
-""" 
+"""
      plotmap(census, pharm)
 
-Plots map of census population centers and pharmacies. 
+Plots map of census population centers and pharmacies.
 """
 function plotmap(census, pharm)
-  
+
   trace = scattergeo(;locationmode="ISO-3",
                      lat=census[:lat],
                      lon=census[:lng],
@@ -98,7 +98,7 @@ function plotmap(census, pharm)
                              mode = "lines",
                              color="black")
   end
-  
+
   geo = attr(scope="north america",
              resolution = 50,
              #projection_type="albers usa",
@@ -120,28 +120,28 @@ function plotmap(census, pharm)
 end
 
 
-""" 
+"""
     checklatlng(df::AbstractDataFrame,
                 lat::Symbol,
                 lng::Symbol,
                 zip::Symbol)
 
 Checks latitude and longitude in df[:lat] and df[:lng] against zip
-code in df[:zip]. 
+code in df[:zip].
 
 Output:
-  - Adds new variables to `df` 
+  - Adds new variables to `df`
       - `:zipmatch::Bool` which is `true` if `df[:lat], df[:lng] ∈`
         Forward sortation area of `df[:zip]`
       - `:ziplat` and `:ziplng` latitude and longitude of centroid of
-        forward soration area of `df[:zip]`   
+        forward soration area of `df[:zip]`
 
 """
 function checklatlng!(df::AbstractDataFrame,
                      lat::Symbol,
                      lng::Symbol,
                      zip::Symbol)
-  # statcan shapefile   
+  # statcan shapefile
   shpzip =
     normpath(joinpath(@__DIR__,"..","data","lfsa000b16a_e.zip"))
   if !isfile(shpzip)
@@ -153,7 +153,7 @@ function checklatlng!(df::AbstractDataFrame,
     unzippath = normpath(joinpath(@__DIR__,"..","data"))
     # the next command will likely fail on windows, use some  other
     # unzip progra
-    run(`unzip $shpzip -d $unzippath`) 
+    run(`unzip $shpzip -d $unzippath`)
   end
   df[:zipmatch] = false
   df[:ziplat] = 0.0
@@ -183,10 +183,10 @@ function checklatlng!(df::AbstractDataFrame,
                                                 => "")," "))
             df[:ziplng][m] .= cent[1]
             df[:ziplat][m] .= cent[2]
-            for j in m             
+            for j in m
               if ismissing(df[lng][j])
                 df[:zipmatch][j] = false
-              else 
+              else
                 phgeom = ArchGDAL.createpoint(df[lng][j], df[lat][j])
                 df[:zipmatch][j] = ArchGDAL.contains(geom, phgeom)
               end
@@ -198,15 +198,20 @@ function checklatlng!(df::AbstractDataFrame,
   end # do registerdrivers()
 
   df
-end 
+end
 
+"""
+    distance_m(lng, lat, zlng, zlat)
 
-function distzip(lng, lat, zlng, zlat)
-  if ismissing(lng)
+Calculates the distance between the longitude and latitude
+pairs. Returns missing if any of the inputs ismissing.
+"""
+function distance_m(lng, lat, zlng, zlat)
+  if ismissing(lng) || ismissing(lat) || ismissing(zlng) || ismissing(zlat)
     missing
-  else 
+  else
     distance(LLA(lng, lat), LLA(zlng,zlat))
   end
 end
-pharm[:zipdist] = distzip.(pharm[:lng],pharm[:lat], pharm[:ziplng],
-                           pharm[:ziplat])
+#pharm[:zipdist] = distance_m(pharm[:lng],pharm[:lat], pharm[:ziplng],
+#                             pharm[:ziplat])

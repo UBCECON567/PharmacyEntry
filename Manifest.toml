@@ -182,9 +182,9 @@ version = "0.1.1"
 
 [[JSExpr]]
 deps = ["JSON", "MacroTools", "Observables", "Test", "WebIO"]
-git-tree-sha1 = "96429a372b5c4ad63fa9cbff6ba4178a85939705"
+git-tree-sha1 = "013bc2143a2e84ea489365cf30db3407deb540c2"
 uuid = "97c1335a-c9c5-57fe-bc5d-ec35cebe8660"
-version = "0.4.0"
+version = "0.5.0"
 
 [[JSON]]
 deps = ["Dates", "Distributed", "Mmap", "Sockets", "Test", "Unicode"]
@@ -387,9 +387,9 @@ version = "0.26.0"
 
 [[TableTraits]]
 deps = ["IteratorInterfaceExtensions", "Test"]
-git-tree-sha1 = "da062a2c31f16178f68190243c24140801720a43"
+git-tree-sha1 = "eba4b1d0a82bdd773307d652c6e5f8c82104c676"
 uuid = "3783bdb8-4a98-5b6b-af9a-565f29a5fe9c"
-version = "0.4.0"
+version = "0.4.1"
 
 [[Tables]]
 deps = ["Requires", "Test"]
@@ -434,9 +434,9 @@ version = "0.5.3"
 
 [[WebIO]]
 deps = ["AssetRegistry", "Base64", "Compat", "FunctionalCollections", "JSON", "Logging", "Observables", "Random", "Requires", "Sockets", "Test", "UUIDs", "Widgets"]
-git-tree-sha1 = "c1edaf26cc283d81edd97385fb8fde80018b0770"
+git-tree-sha1 = "c1f259d4c23f12262f4fa69263a4e54fbea77450"
 uuid = "0f1e0344-ec1d-5b48-a673-e5cf874b6c29"
-version = "0.6.1"
+version = "0.7.0"
 
 [[WebSockets]]
 deps = ["Base64", "Dates", "Distributed", "HTTP", "Logging", "MbedTLS", "Random", "Sockets", "Test"]
