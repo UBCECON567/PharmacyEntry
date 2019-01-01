@@ -1,5 +1,5 @@
 """
-    loadpharmacydata(;redownload=false) 
+    loadpharmacydata(;redownload=false, regeocode=false) 
  
 (Down)loads list of pharmacies in various Canadian provinces. 
 
