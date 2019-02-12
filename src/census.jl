@@ -116,7 +116,8 @@ function loadcensusdata(;redownload=false, reparse=false, regeocode=false)
       
       newdf = df[df[:name] .∈ [vars],[:GEO_CODE, :GEO_NAME, :name, :Total]]
       wdf = unstack(newdf, :name, :Total)
-      #
+
+      
       # For some baffling reason StatsCan doesn't include province identifiers in the Population Centres file
       # StatsCan own documents say,
       # It is recommended that the two-digit province/territory (PR) 
@@ -125,8 +126,7 @@ function loadcensusdata(;redownload=false, reparse=false, regeocode=false)
       # corresponding province/territory.
       # https://www12.statcan.gc.ca/census-recensement/2016/ref/dict/geo049a-eng.cfm
       # Yet they don't follow this recommendation. 
-      # At least they provide a semi-reasonable way to get this info
-      #
+      # At least they provide a semi-reasonable way to get this info      
       @info "Loading missing province codes from statcan"
       r = HTTP.get("https://www12.statcan.gc.ca/rest/census-recensement/CR2016Geo.xml?geos=POPCNTR")
       xdoc = parse_string(String(r.body));

@@ -1,0 +1,262 @@
+---
+title       : "Assignment: pharmacy entry"
+subtitle    : 
+author      : Paul Schrimpf
+date        : `j using Dates; print(Dates.today())`
+bibliography: "entry.bib"
+---
+
+<a rel="license"
+href="http://creativecommons.org/licenses/by-sa/4.0/"><img alt="Creative
+Commons License" style="border-width:0"
+src="https://i.creativecommons.org/l/by-sa/4.0/88x31.png"
+/></a><br />This work is licensed under a <a rel="license"
+href="http://creativecommons.org/licenses/by-sa/4.0/">Creative
+Commons Attribution-ShareAlike 4.0 International License</a>.
+### About this document {-}
+
+This document was created using Weave.jl. The code is available in
+[on github](https://github.com/ECON567/PharmacyEntry). The same
+document generates both static webpages and associated jupyter
+notebooks. 
+
+$$
+\def\indep{\perp\!\!\!\perp}
+\def\Er{\mathrm{E}}
+\def\R{\mathbb{R}}
+\def\En{{\mathbb{E}_n}}
+\def\Pr{\mathrm{P}}
+\newcommand{\norm}[1]{\left\Vert {#1} \right\Vert}
+\newcommand{\abs}[1]{\left\vert {#1} \right\vert}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\def\inprob{\,{\buildrel p \over \rightarrow}\,} 
+\def\indist{\,{\buildrel d \over \rightarrow}\,} 
+$$
+
+# Introduction
+
+This assignment will estimate a model of pharmacy entry inspired by
+@br1991. 
+
+## Getting started 
+
+[https://vse.syzygy.ca](https://vse.syzygy.ca) provides a convenient
+browser based interface to Julia. Open it and log in. This assignment
+is in a git repository at
+[https://github.com/UBCECON567/PharmacyEntry](https://github.com/UBCECON567/PharmacyEntry). Start
+by cloning the git repository to your syzygy directory. Open a
+terminal in syzygy (File -> New -> Terminal). This will open a Linux
+shell in your browser. To clone the git repository, enter 
+
+`
+git clone https://github.com/UBCECON567/PharmacyEntry
+`
+
+This will create a directory called `PharmacyEntry` containing all the
+files related to this assignment. 
+
+Clicking on the folder icon near the top left of the screen opens a
+file browser panel. Use it to open the `PharmacyEntry/notebooks`
+folder. You can complete this assignment by modifying the
+`pharmacyentry.ipynb` notebook. I recommend creating a copy of this
+notebook, and then working on the copy. You can create a copy by right
+clicking in the file browser panel. Now open your copy of the
+notebook.
+
+There might be some problem with previously installed julia packages
+and the upgrade to vse.syzygy.ca . If you can no longer run Julia
+notebooks, and are seeing "No Kernel!" in the top right of the screen,
+you can try removing your previously installed julia packages. Open a
+terminal and type "rm -rf ~/.julia". Afterward, you will have to
+re-add any packages you need.
+
+<!-- ## Optional: setup a local working environment -->
+
+<!-- If you are happy with working on vse.syzygy.ca, then you can skip this -->
+<!-- section. However, you might prefer to install Julia and related tools -->
+<!-- on your own computer.  -->
+
+# Part I: scraping pharmacy data
+
+As in the previous assignment, we begin by loading required packages.
+```julia
+using Pkg 
+Pkg.activate("..") 
+Pkg.instantiate()
+
+using Revise
+if (!("../src" ∈ LOAD_PATH))
+  push!(LOAD_PATH, "../src") 
+end
+using PharmacyEntry
+```
+
+Part of the appeal of entry models is that they can be estimated using
+readily available data. @br1991 used data on market demographic
+information and the number of firms within a category in each
+market. We can easily gather similar information. We will focus on
+pharmacies. We chose pharmacies because it was one of the industries
+included in @br1991, it fits with the theme of focusing on the
+industrial organization of health related industries, and a list of
+pharamacies in Canada is available. Pharmacies in Canada are
+provincially regulated. A list with the website of each provincial
+regulator can be found
+[here](https://www.pharmacists.ca/pharmacy-in-canada/directory-of-pharmacy-organizations/provincial-regulatory-authorities1/). 
+
+Each provincial regulator provides a list of pharmacies with
+addresses. These can be downloaded and saved as DataFrames. Doing so
+is slightly tedious though because each provincial regulator's website
+is different, so different code will be needed to parse each. 
+
+Let's look at community pharmacies in BC,
+[http://www.bcpharmacists.org/list-community-pharmacies](http://www.bcpharmacists.org/list-community-pharmacies). This
+list is already nicely formatted as a table. We could simply copy and
+paste its contents into a spreadsheet, save as cvs, and then load into
+Julia. That would be an okay method, but copying and pasting is
+slightly more error prone (or at least prone to undocumented and
+unreproducible errors) than writing code to parse the website. More
+importantly, other provinces have websites that are not so nicely
+formatted and will require code to parse. We will
+[HTTP.jl](https://github.com/JuliaWeb/HTTP.jl) to request webpages,
+[Cascadia.jl](https://github.com/Algocircle/Cascadia.jl) to select by
+CSS paths, and [regular
+expressions](https://docs.julialang.org/en/v1.0/manual/strings/#Regular-Expressions-1)
+to find patterns in text. Although our code will be in Julia, CSS
+selectors and regular expressions are common and useful tools for scraping
+webpages with any programming language. 
+
+To scrape websites well, you need some understanding of html, CSS, and
+sometimes
+javascript. [https://www.w3schools.com/](https://www.w3schools.com/)
+is a pretty comprehensive reference. Here is a very short
+explanation. 
+CSS stands for "cascading style sheets." CSS is used to control the
+formatting of webpages. html documents consist of a bunch of tagged
+elements (headlines, links, tables, paragraphs, divs, etc) with optional
+class specifications. CSS contain information about how to display
+each combination of tag and class. The combination(s) of tags and
+classes to which a given display style (font, color, etc) applies is
+called a CSS selector. Each part of a webpage that looks different
+will have a different CSS selector. If we want to scrape some
+particular information off a webpage, CSS selectors are usually a good
+way to pick out the pieces we need. 
+
+Returning to
+[http://www.bcpharmacists.org/list-community-pharmacies](http://www.bcpharmacists.org/list-community-pharmacies),
+we can see that the pharmacy names and addresses are in table rows
+with alternating background shades of gray. There will be CSS
+selectors to pick out these rows. Most web browsers include tools to
+create css selectors. In either Firefox or Chrome (Safari and Edge
+likely have similar behavior, but I have not checked), if you right click
+anywhere on a website, there is an "Inspect Element" option (you
+possibly need to enable developer tools in the web browser options
+first). This will open the developer toolbar. In the toolbar there
+will be a collapsible tree listing the nested html tags on the
+website. As you hover over different tags, the corresponding part of
+the website will be highlighted. If you right click a tag, there will
+be an option to copy the corresponding CSS selector. Doing this on
+[http://www.bcpharmacists.org/list-community-pharmacies](http://www.bcpharmacists.org/list-community-pharmacies),
+you will see that `tr.odd` and `tr.even` will select all rows from the
+table that we want. Here's some Julia code to select these rows.
+
+```julia
+using HTTP, Gumbo, Cascadia
+
+# download website
+r =  HTTP.get("http://www.bcpharmacists.org/list-community-pharmacies");  
+
+# parse website into tree using Gumbo.jl
+h = Gumbo.parsehtml(String(r.body));
+
+# select elements by CSS with Cascadia
+rows = eachmatch(Cascadia.Selector("tr.odd, tr.even"), h.root);
+@show length(rows)
+@show typeof(rows)
+@show typeof(rows[1])
+display(rows[1])
+display(rows[1].children)
+```
+
+As you saw from the developer tools in your browser, html documents
+can be organized into a tree structure of nested
+tags. [Gumbo.jl](https://github.com/JuliaWeb/Gumbo.jl) is a Julia
+package that stores html pages in exactly this sort of tree
+structure. From the output of the code, we can see that it
+successfully selected all 1000+ rows of the table of pharmacies. Each
+row is a HTMLElement as described in the documentation for
+[Gumbo.jl](https://github.com/JuliaWeb/Gumbo.jl). Each row has
+children corresponding to the 5 columns of the table. Now, we can
+extract the text from the 5 columns of each row and store it in a
+DataFrame. 
+
+```julia
+using DataFrames
+function parserow(row)
+  fields = nodeText.(row.children)
+  fields = reshape(fields, (1, length(fields)))
+end
+txt = vcat(parserow.(rows)...)
+bc = DataFrame(txt, [:name, :address, :manager, :phone, :fax])
+```
+
+Later we are going to assign these pharmacies into isolated local
+markets and match them with census data. We will do so based on
+addresses. For this, it will be useful to parse the addresses into a
+consistent format. We will divide the address field into street, city,
+zip, and province. The dominant tool for matching, splitting, and
+substiting text based on patterns are [regular
+expressions](https://en.wikipedia.org/wiki/Regular_expression). Regular
+expressions are nearly as old as computers themselves, and they remain
+an important and powerfull tool for text processing. 
+
+### Problem 1: familiarize yourself with regular expressions
+
+[This interactive tutorial](https://regexone.com/) is a good way to
+learn the basics of regular expressions. Work through it. There is
+nothing to turn in for this part, but there is a small task below.
+
+Here is some Julia code using regular expressions to split addresses
+into their parts. See [Julia's
+documentation](https://docs.julialang.org/en/v1.0/manual/strings/#Regular-Expressions-1)
+for more information. 
+```julia
+bc[:street] = (a->replace(a, r"(.+)\n.+, BC.+\n.+"s => s"\1")).(bc[:address])
+bc[:city]   = (a->replace(a, r".+\n(.+), BC.+\n.+"s => s"\1")).(bc[:address])
+bc[:zip]  =     (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).+"s => s"\1 \2")).(bc[:address])
+bc[:zipalt]    = (a->replace(a, r".+(\p{L}\d\p{L} \d\p{L}\d).+"s => s"\1")).(bc[:address])
+bc[:province] = "BC" 
+
+```
+Compare :zip and :zipalt in the code above? What is the difference
+between the regular expressions used? Give an example of a pattern
+that one matches, but not the other. What is the problem with :zipalt?
+
+### Problem 2: parse an additional province
+
+The function `loadpharmacydata` in `PharmacyEntry/src/pharmacies.jl`
+downloads and parses the lists of pharmacies in BC and Manitoba. Add
+code to download data from at least one additional province. Note that
+the function `loadBCdata` and `loadMBdata` are not exported from the
+`PharmacyEntry.jl` module. To call non-exported functions from outside
+the module you must preface with the module name,
+e.g. `bc = PharmacyEntry.loadBCdata(true)`. Either include your
+modified version of pharmacies.jl with what you turn in, or include
+the new function definitions in this notebook. 
+
+# Part II: downloading census data
+
+### Problem 3: market definition 
+
+We will download information on area demographic and economic
+conditions from Statistics Canada. An important choice in entry models
+is deciding what geographic area should define a market. See
+e.g. @br1991 or @ellickson2007. 
+Statistics
+Canada provides data at various [geographic
+levels](https://www12.statcan.gc.ca/census-recensement/2016/dp-pd/prof/about-apropos/about-apropos.cfm?Lang=E). 
+I somewhat arbitrarily chose to download data at the population centre
+level. Criticise or defend this choice. Optionally, modify `census.jl`
+to download census data at a different geographic level.
+
+
