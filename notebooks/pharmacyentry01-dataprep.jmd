@@ -300,7 +300,9 @@ from additional provinces), you will need to get a free API key by
 signing up with [https://www.geocod.io/](https://www.geocod.io/). Save
 the key in a text file named `geocodio.key` and place it in
 `PharmacyEntry/src/`. Let me know if you have any problems or the free
-key is insufficient. Geocoding is imperfect due to typos and
+key is insufficient. 
+
+Geocoding is imperfect due to typos and
 errors in the address data, and possibly missing information in
 geocod.io's map data. The function `checklatlng!` partially checks for
 errors by comparing the latitude and longitude from geocod.io with the
@@ -324,8 +326,12 @@ checklatlng!(pharm, :lat, :lng, :zip)
 ```
 
 ```julia; eval=false
-plotmap(census, pharm) # should work in notebook, but won't in weaved
-                       # html output
+plotmap(census, pharm)
+# Configuration problem with jupyter on vse.syzygy.ca makes PlotlyJS
+# not display. Problem with Weave.jl also make PlotlyJS not display in
+# html output ... :(
+#
+# Bonus problem: find a way to plot a map that works on vse.syzygy.ca
 ```
 
 ### Problem 5: assign pharmacies to markets
