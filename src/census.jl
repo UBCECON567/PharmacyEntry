@@ -62,7 +62,7 @@ const provinceabbr = Dict("Newfoundland and Labrador" => "NL",
 """
     loadcensusdata(;redownload=false, reparse=false) 
  
-(Down)loads list of pharmacies in various Canadian provinces. 
+(Down)loads data on census populations centres from StatCan.
 
 Optional arguments:
   - `redownload` if true, will redownload source files, else tries to

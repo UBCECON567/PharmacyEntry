@@ -1,5 +1,18 @@
-# Function related to geography. Looking up lat/lon, distances, and so
+# Functions related to geography. Looking up lat/lon, distances, and so
 # on.
+
+
+################################################################################
+#
+# I gave up on using google maps for this project. It seems like
+# storing query results would violate Google's TOS. Also, getting the
+# distance matrix for all 1000 pharmacies by 1000 populations =
+# 1,000,000 queries = $5,000! Of course many of these queries could be
+# avoided by e.g. only doing ones within X straightline distance, but
+# it'll still cost around $25 and violate the TOS.
+#
+################################################################################
+
 
 """
      geocode!(df::AbstractDataFrame,address::Symbol)
@@ -12,10 +25,11 @@ pygeocodio Python module.
 """
 function geocode!(df::AbstractDataFrame,
                   address::Symbol)
-  if !isfile("geocodio.key")
+  keyfilename=normpath(joinpath(@__DIR__,"..","src","geocodio.key"))
+  if !isfile(keyfilename)
     error("geocodio.key not found")
   end
-  keyfile = open("geocodio.key","r")
+  keyfile = open(keyfilename,"r")
   key = read(keyfile, String);
   close(keyfile)
   geocodio = pyimport("geocodio")
@@ -54,16 +68,6 @@ function geocode!(df::AbstractDataFrame,
 end
 
 
-################################################################################
-#
-# I gave up on using google maps for this project. It seems like
-# storing query results would violate Google's TOS. Also, getting the
-# distance matrix for all 1000 pharmacies by 1000 populations =
-# 1,000,000 queries = $5,000! Of course many of these queries could be
-# avoided by e.g. only doing ones within X straightline distance, but
-# it'll still cost around $25 and violate the TOS.
-#
-################################################################################
 
 """
      plotmap(census, pharm)
@@ -81,22 +85,23 @@ function plotmap(census, pharm)
                      marker_line_color="black", marker_line_width=2)
   idx  = pharm[:zipmatch]
   tp1 = scattergeo(;lat=pharm[:lat][idx], lon=pharm[:lng][idx],
-                  marker_size = 3,
+                  marker_size = 10,
                   marker_color="green")
   tp2 = scattergeo(;lat=pharm[:lat][.!idx], lon=pharm[:lng][.!idx],
-                   marker_size = 3,
+                   marker_size = 10,
                    hoverinfo="text",
                    text=[string(x[:address], " zip: ",
                                 x[:zip])
                          for x in eachrow(pharm[.!idx,:])],
                    marker_color="red")
-
-  tozipctr = Array{typeof(trace)}(undef,nrow(pharm))
-  for r in 1:nrow(pharm)
-    tozipctr[r] = scattergeo(;lat=[pharm[:lat][r], pharm[:ziplat][r]],
-                             lon= [pharm[:lng][r], pharm[:ziplng][r]],
+  nzp = pharm[.!pharm[:zipmatch],:]
+  tozipctr = Array{typeof(trace)}(undef,nrow(nzp))
+  for r in 1:nrow(nzp)
+    tozipctr[r] = scattergeo(;lat=[nzp[:lat][r], nzp[:ziplat][r]],
+                             lon= [nzp[:lng][r], nzp[:ziplng][r]],
                              mode = "lines",
-                             color="black")
+                             hoverinfo = "none",
+                             line_color="black")
   end
 
   geo = attr(scope="north america",
@@ -158,7 +163,9 @@ function checklatlng!(df::AbstractDataFrame,
   df[:zipmatch] = false
   df[:ziplat] = 0.0
   df[:ziplng] = 0.0
-  df[:fsa] = (x->replace(x,r"(\p{L}\d\p{L}).?(\d\p{L}\d)" => "\1")).(df[zip])
+  df[:fsa] = (x->replace(x,r"(\p{L}\d\p{L}).?(\d\p{L}\d)" =>
+                         s"\1")).(df[zip])
+
   ArchGDAL.registerdrivers() do
     ArchGDAL.read(shpfile) do sf
       layer = ArchGDAL.getlayer(sf, 0)

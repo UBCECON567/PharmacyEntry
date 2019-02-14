@@ -1,9 +1,10 @@
 ---
 title       : "Assignment: pharmacy entry"
-subtitle    : 
+subtitle    : "Part I-III: data preparation"
 author      : Paul Schrimpf
 date        : `j using Dates; print(Dates.today())`
 bibliography: "entry.bib"
+link-citations: true
 ---
 
 <a rel="license"
@@ -13,6 +14,7 @@ src="https://i.creativecommons.org/l/by-sa/4.0/88x31.png"
 /></a><br />This work is licensed under a <a rel="license"
 href="http://creativecommons.org/licenses/by-sa/4.0/">Creative
 Commons Attribution-ShareAlike 4.0 International License</a>.
+
 ### About this document {-}
 
 This document was created using Weave.jl. The code is available in
@@ -198,6 +200,7 @@ function parserow(row)
 end
 txt = vcat(parserow.(rows)...)
 bc = DataFrame(txt, [:name, :address, :manager, :phone, :fax])
+describe(bc)
 ```
 
 Later we are going to assign these pharmacies into isolated local
@@ -220,14 +223,16 @@ Here is some Julia code using regular expressions to split addresses
 into their parts. See [Julia's
 documentation](https://docs.julialang.org/en/v1.0/manual/strings/#Regular-Expressions-1)
 for more information. 
+
 ```julia
 bc[:street] = (a->replace(a, r"(.+)\n.+, BC.+\n.+"s => s"\1")).(bc[:address])
 bc[:city]   = (a->replace(a, r".+\n(.+), BC.+\n.+"s => s"\1")).(bc[:address])
-bc[:zip]  =     (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).+"s => s"\1 \2")).(bc[:address])
-bc[:zipalt]    = (a->replace(a, r".+(\p{L}\d\p{L} \d\p{L}\d).+"s => s"\1")).(bc[:address])
+bc[:zip]  =     (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).*"s => s"\1 \2")).(bc[:address])
+bc[:zipalt]    = (a->replace(a, r".+(\p{L}\d\p{L} \d\p{L}\d).*"s => s"\1")).(bc[:address])
 bc[:province] = "BC" 
-
+describe(bc)
 ```
+
 Compare :zip and :zipalt in the code above? What is the difference
 between the regular expressions used? Give an example of a pattern
 that one matches, but not the other. What is the problem with :zipalt?
@@ -257,6 +262,93 @@ Canada provides data at various [geographic
 levels](https://www12.statcan.gc.ca/census-recensement/2016/dp-pd/prof/about-apropos/about-apropos.cfm?Lang=E). 
 I somewhat arbitrarily chose to download data at the population centre
 level. Criticise or defend this choice. Optionally, modify `census.jl`
-to download census data at a different geographic level.
+to download census data at a different geographic level (the changes
+might be somewhat extensive).
 
+### Problem 4: choose census variables to extract
+
+The census data contains a lot of information. For example, all the
+information for the [Vancouver population centre is
+here](https://www12.statcan.gc.ca/census-recensement/2016/dp-pd/prof/details/page.cfm?Lang=E&Geo1=POPC&Code1=0973&Geo2=PR&Code2=59&Data=Count&SearchText=Vancouver&SearchType=Begins&SearchPR=01&B1=All). The
+documentation for the variables from StatCan is included in the
+assignment git repo as,
+[https://github.com/ECON567/PharmacyEntry/data/98-401-X2016048_English_meta.txt](https://github.com/ECON567/PharmacyEntry/data/98-401-X2016048_English_meta.txt). The
+`const vars` defined at the start of `PharmacyEntry/src/census.jl` is
+a list of variables from the census data to extract for future
+use. Briefly review these and add or delete variables as you see
+fit. We want variables that are related to either the revenues or
+costs of pharmacies. It is probably better to err on the side of
+including too much instead of too little because you can always choose
+to ignore some variables later. 
+
+# Part III: geocoding
+
+We must now link pharmacies and population centres together based on
+location. Statistics Canada provides shapefiles giving the boundaries
+of population centres. The `loadcensusdata` function in `census.jl`
+records the latitude and longitude of the geographic center of each
+population centre. For pharmacies we have have their addresses. There
+are number of online service that geocode addresses into latitude and
+longitude. I looked at a few of them and settled on using
+[https://www.geocod.io/](https://www.geocod.io/) for this project. The
+main reasons I chose this service are that its terms of service allow
+using and storing data generated from it in any way, and a free
+account allows enough lookups to complete this project. The function
+`geocode!` in `geo.jl` uses geocod.io to geocode the pharmacy
+addresses. If you want to run it (e.g. because you scraped pharmacies
+from additional provinces), you will need to get a free API key by
+signing up with [https://www.geocod.io/](https://www.geocod.io/). Save
+the key in a text file named `geocodio.key` and place it in
+`PharmacyEntry/src/`. Let me know if you have any problems or the free
+key is insufficient. Geocoding is imperfect due to typos and
+errors in the address data, and possibly missing information in
+geocod.io's map data. The function `checklatlng!` partially checks for
+errors by comparing the latitude and longitude from geocod.io with the
+boundaries of forward sortation areas (first 3 characters of zip
+codes). The `plotmap` function plots population centres and
+pharmacies. Pharmacies for which the latitude and longitude is not in
+the boundaries of the forward sortation area of its zip code are
+red. The others are green. For red pharmacies, the line goes from the
+pharmacy to the latitude and longitude at the center of its FSA. You
+can clearly see some pharmacies are misplaced, but other red ones
+might be okay. 
+
+
+```julia
+using Statistics
+pharm = loadpharmacydata()
+census= loadcensusdata()
+
+checklatlng!(pharm, :lat, :lng, :zip)
+@show mean(pharm[:zipmatch])
+```
+
+```julia; eval=false
+plotmap(census, pharm) # should work in notebook, but won't in weaved
+                       # html output
+```
+
+### Problem 5: assign pharmacies to markets
+
+Decide on some rules for assigning pharmacies to markets (population
+centres). Implement your choice and create a variable giving the
+number of pharmacies in each population centre. The function
+`distance_m` in `geo.jl` might be useful. Create tables and/or graphs
+summarizing the distribution of number of pharmacies similar to Table
+2 and Figure 3 from @br1991. 
+
+### Problem 6: summary statistics and figures
+
+Create additional summary statistics and figures.
+
+
+
+This will be continued in a second notebook. Save your data frame to
+load it there.
+```julia
+import CSV
+df = census ## CHANGE THIS TO YOUR COMBINED census + pharmacy counts
+            ## data
+CSV.write("cleandata.csv",df);
+```
 

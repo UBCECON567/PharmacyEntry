@@ -30,6 +30,7 @@ function loadpharmacydata(;redownload=false, regeocode=false)
   end
   
   if (regeocode || !(:lat ∈ names(df)))
+    df[:address_original] = df[:address]
     ## Look up latitude and longitude of each pharmacy    
     df[:address] =  (df[:street].*", ".*df[:city] .* ", " .*
                      df[:province] .* "  " .* df[:zip] .* ", Canada") 
@@ -56,7 +57,7 @@ Inputs:
 Output: 
 - Dataframe containing information on pharmacies
 """
-function loadBCdata(;redownload=false)
+function loadBCdata(redownload=false)
   csvfile=normpath(joinpath(@__DIR__,"..","data","bc-pharmacies.csv"))
   if (redownload || !isfile(csvfile))
     r = HTTP.get("http://www.bcpharmacists.org/list-community-pharmacies");
@@ -71,7 +72,7 @@ function loadBCdata(;redownload=false)
     bc = DataFrame(txt, [:name, :address, :manager, :phone, :fax])
     bc[:street] = (a->replace(a, r"(.+)\n.+, BC.+\n.+"s => s"\1")).(bc[:address])
     bc[:city] = (a->replace(a, r".+\n(.+), BC.+\n.+"s => s"\1")).(bc[:address])
-    bc[:zip]  = (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).+"s => s"\1 \2")).(bc[:address])
+    bc[:zip]  = (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).*"s => s"\1 \2")).(bc[:address])
     bc[:province] = "BC"
     CSV.write(csvfile, bc)    
   else
@@ -115,7 +116,7 @@ function loadMBdata(redownload=false)
                    [:name, :address, :manager,:phone, :fax, :street])
     mb[:province] = "MB"
     mb[:city] = (a->replace(a, r"(^.+), M.+" => s"\1")).(mb[:address])
-    mb[:zip]  =     (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).+"s => s"\1 \2")).(mb[:address])
+    mb[:zip]  = (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).*"s => s"\1 \2")).(mb[:address])
     CSV.write(csvfile,mb)
   else
     mb = CSV.read(csvfile)

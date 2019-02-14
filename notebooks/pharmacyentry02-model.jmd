@@ -1,0 +1,59 @@
+---
+title       : "Assignment: pharmacy entry"
+subtitle    : "Part IV-??" 
+author      : Paul Schrimpf
+date        : `j using Dates; print(Dates.today())`
+bibliography: "entry.bib"
+link-citations: true
+---
+
+<a rel="license"
+href="http://creativecommons.org/licenses/by-sa/4.0/"><img alt="Creative
+Commons License" style="border-width:0"
+src="https://i.creativecommons.org/l/by-sa/4.0/88x31.png"
+/></a><br />This work is licensed under a <a rel="license"
+href="http://creativecommons.org/licenses/by-sa/4.0/">Creative
+Commons Attribution-ShareAlike 4.0 International License</a>.
+
+### About this document {-}
+
+This document was created using Weave.jl. The code is available in
+[on github](https://github.com/ECON567/PharmacyEntry). The same
+document generates both static webpages and associated jupyter
+notebooks. 
+
+$$
+\def\indep{\perp\!\!\!\perp}
+\def\Er{\mathrm{E}}
+\def\R{\mathbb{R}}
+\def\En{{\mathbb{E}_n}}
+\def\Pr{\mathrm{P}}
+\newcommand{\norm}[1]{\left\Vert {#1} \right\Vert}
+\newcommand{\abs}[1]{\left\vert {#1} \right\vert}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\def\inprob{\,{\buildrel p \over \rightarrow}\,} 
+\def\indist{\,{\buildrel d \over \rightarrow}\,} 
+$$
+
+```julia
+using Pkg 
+Pkg.activate("..") 
+Pkg.instantiate()
+
+using Revise
+if (!("../src" ∈ LOAD_PATH))
+  push!(LOAD_PATH, "../src") 
+end
+using PharmacyEntry
+```
+
+# Part IV
+
+
+```julia
+df = CSV.read("cleandata.csv")
+describe(df)
+```
+
+TO BE CONTINUED
