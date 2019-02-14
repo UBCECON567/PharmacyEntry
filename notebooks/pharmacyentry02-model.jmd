@@ -52,6 +52,8 @@ using PharmacyEntry
 
 
 ```julia
+using DataFrames
+import CSV
 df = CSV.read("cleandata.csv")
 describe(df)
 ```
