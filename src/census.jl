@@ -148,15 +148,16 @@ function loadcensusdata(;redownload=false, reparse=false, regeocode=false)
     census=CSV.read(censuscsv)
   end
   if (regeocode || !(:lat ∈ names(census)))
-    # statcan shapefile   
-    shpzip =
-      normpath(joinpath(@__DIR__,"..","data","lpc_000b16a_e.zip"))
-    if !isfile(shpzip)
-      download("http://www12.statcan.gc.ca/census-recensement/2011/geo/bound-limit/files-fichiers/2016/lpc_000b16a_e.zip",
-               shpzip)
-    end
+    # statcan shapefile
     shpfile = normpath(joinpath(@__DIR__,"..","data","lpc_000b16a_e.shp"))
     if !isfile(shpfile)
+      shpzip =
+        normpath(joinpath(@__DIR__,"..","data","lpc_000b16a_e.zip"))
+      if !isfile(shpzip)
+        download("http://www12.statcan.gc.ca/census-recensement/2011/geo/bound-limit/files-fichiers/2016/lpc_000b16a_e.zip",
+                 shpzip)
+      end
+
       unzippath = normpath(joinpath(@__DIR__,"..","data"))
       # the next command will likely fail on windows, use some  other
       # unzip progra
