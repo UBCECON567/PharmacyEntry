@@ -39,7 +39,7 @@ $$
 ```julia
 using Pkg 
 Pkg.activate("..") 
-Pkg.instantiate()
+Pkg.resolve()
 
 using Revise
 if (!("../src" ∈ LOAD_PATH))
@@ -48,14 +48,183 @@ end
 using PharmacyEntry
 ```
 
-# Part IV
+# Part IV - Model
+
+As in @br1991, we will assume that the profits per pharmacy in
+market $m$ with $N$ pharmacies is 
+
+$$
+\begin{align*}
+    \pi_{m,N} = s_m \underbrace{(\alpha_1 + x_m\beta + \sum_{n=2}^N
+    \alpha_n)}_{\text{variable profits}} - \underbrace{\left(\gamma_1 + \delta
+    w_m + \sum_{n=2}^N \gamma_n \right)}_{\text{fixed costs}} +
+    \epsilon_m 
+\end{align*}
+$$
+
+where $s_m$ is the size of the market. To simplify, I am omitting the
+$\lambda$ and the other size shifting variables from the model. You may add
+these if you wish. 
+
+Let $\theta = (\alpha, \beta, \gamma)$ denote the model parameters.
+If we assume $\epsilon_m$ has cdf $F_\epsilon()$ (conditional on $s$,
+$x$, and $w$), then the likelihood of observing $N_m$ pharmacies in
+market $m$ is
+
+$$
+\begin{align*}
+   P(N = N_m | s_m, x_m, w_m; \theta) = & P(\pi_{m,N} \geq 0 \;\&\;
+   \pi_{m,N+1} < 0) \\
+   = & P\left(-\left[s_m (\alpha_1 + x_m\beta - \sum_{n=2}^{N_m}
+    \alpha_n) - \left(\gamma_1 + \delta
+    w_m + \sum_{n=2}^{N_m} \gamma_n \right)\right] \leq
+    \epsilon_m \leq -\left[s_m (\alpha_1 + x_m\beta - \sum_{n=2}^{N_m+1}
+    \alpha_n) - \left(\gamma_1 + \delta
+    w_m + \sum_{n=2}^{N_m+1} \gamma_n \right)\right] \right) \\
+   = & F_\epsilon\left(-\left[s_m (\alpha_1 + x_m\beta - \sum_{n=2}^{N_m+1}
+    \alpha_n) - \left(\gamma_1 + \delta
+    w_m + \sum_{n=2}^{N_m+1} \gamma_n \right)\right]\right) -
+    F_\epsilon\left( -\left[s_m (\alpha_1 + x_m\beta - \sum_{n=2}^{N_m}
+    \alpha_n) - \left(\gamma_1 + \delta
+    w_m + \sum_{n=2}^{N_m} \gamma_n \right)\right] \right)
+\end{align*}
+$$
+
+The loglikelihood is then
+
+$$
+\mathcal{L}(\theta) = \sum_{m=1}^M \log P(N = N_m | s_m, x_m, w_m;
+\theta),
+$$
+
+and $\theta$ can be estimated by maximizing,
+
+$$
+\hat{\theta} = \argmax_\theta \mathcal{L}(\theta).
+$$
+
+### Problem 1: loglikelihood
+
+Write a function to compute the loglikelihood. You may do this however
+you want, but I suggest using the following skeleton code.
+```julia; eval=false
+using Distributions
+
+"""
+         brentrymodel(data::AbstractDataFrame,
+                      n::Symbol,
+                      s::Symbol,
+                      x::Array{Symbol,1},
+                      w::Array{Symbol,1};
+                      Fϵ)
+
+Create loglikelihood for Bresnehan & Reiss style entry model
+
+Inputs:
+- `data` DataFrame 
+- `n` name of number of firm variable in data
+- `s` name of market size variable in data
+- `x` array of names of variable profit shifters
+- `w` array of names of fixed cost shifters 
+- `Fϵ` cdf of ϵ, optional, defaults to standard normal cdf
+
+The same variables may be included in both `x` and `w`.
 
 
+"""
+function brentrymodel(data::AbstractDataFrame,
+                      n::Symbol,
+                      s::Symbol,
+                      x::Array{Symbol,1},
+                      w::Array{Symbol,1};
+                      Fϵ = x->cdf(Normal(),x))
+  # skip observations with missings
+  vars = [n, s, x..., w...]
+  inc = completecases(data[vars])
+
+  N = disallowmissing(data[n][inc])
+  S = disallowmissing(data[s][inc])
+  X = disallowmissing(convert(Matrix, data[x][inc,:]))
+  W = disallowmissing(convert(Matrix, data[w][inc,:]))
+  Nmax = maximum(N)
+  function packparam(α,β,γ,δ)
+    θ = (α,β,γ,δ)
+  end
+  function unpackparam(θ)
+    α = θ[1:Nmax]
+    β = θ[(Nmax+1):(Nmax+size(X,2))]
+    γ = θ[(Nmax+size(X,2)+1):(Nmax+size(X,2)+Nmax)]
+    δ = θ[(Nmax+size(X,2)+Nmax+1):end]
+    (α,β,γ,δ)
+  end
+  function loglike(θ)
+    (α,β,γ,δ) = unpackparam(θ)
+    error("You must write the body of this function")    
+  end
+  
+  return(loglike=loglike, unpack=unpackparam, pack=packparam)
+end
+
+```
+
+### Problem 2: estimate on simulated data 
+
+It is good practice to test any estimation method on simulated
+data. The function `brentrysim` in `PharmacyEntry/src/entrymodel.jl`
+simulates this model. Use it to test your likelihood. Here is some
+code to simulate. You may need to adjust the parameters to get a
+decent distribution of number of firms (i.e. not all 0 or 5).
 ```julia
+
+# Simulating data
 using DataFrames
 import CSV
 df = CSV.read("cleandata.csv")
-describe(df)
+
+# parameters for simulation
+α = [-0.13, -0.29, -0.19, -0.2, -0.1] # loosely taken from Bresnehan & Reiss
+                                      # Table 4, note that my
+                                      # notation has α[2:n] equal to
+                                      # their -α[2:n]
+γ = [0.5,   1.,  1.,  1., 1.]
+# you may have to adjust the parameters to get a reasonable distribution of
+# number of pharmacies across markets
+svar = Symbol("Population, 2016")
+α = α./mean(df[svar])  # scale to fit this data better
+β = [1., 10., 2.]
+xvars = [Symbol("Employment rate"),
+         Symbol("Average total income in 2015 among recipients (\$)"),
+         Symbol("65 years and over")]
+for j in 1:length(β)
+  β[j] = β[j] / mean(df[xvars[j]].*df[svar])
+end
+δ = [1., 1.]
+wvars = [Symbol("Population density per square kilometre"),
+         Symbol("Land area in square kilometres")]
+for j in 1:length(δ)
+  δ[j] = δ[j] / maximum(df[wvars[j]])
+end
+
+df[:nsim] = brentrysim(df, svar, xvars, wvars, α,β,γ,δ)
+println("Distribution of number of firms")
+for i in 0:length(α)
+  println("$(mean(df[:nsim].==i))") 
+end
 ```
+
+To estimate from the simulated data, you could do the following.
+```julia; eval=false
+using Optim
+
+(loglike, unpack, pack) = brentrymodel(df, :nsim, svar, xvars, wvars)
+θ0 = pack(α,β,γ,δ)
+res = optimize(loglike, zeros(size(θ0)), BFGS(), autodiff=:forward)
+θhat = res.minimizer
+(αhat, βhat, γhat, δhat) = unpack(θhat)
+
+```
+Ideally, you would do this many times, and verify that on average the
+estimates are close to the true parameters. 
+
 
 TO BE CONTINUED

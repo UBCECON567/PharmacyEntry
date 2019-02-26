@@ -195,7 +195,7 @@ function checklatlng!(df::AbstractDataFrame,
                 df[:zipmatch][j] = false
               else
                 phgeom = ArchGDAL.createpoint(df[lng][j], df[lat][j])
-                df[:zipmatch][j] = ArchGDAL.contains(geom, phgeom)
+                df[:zipmatch][j] = ArchGDAL.intersects(geom, phgeom) # contains?
               end
             end # for j
           end # if length(m)>0
@@ -217,7 +217,7 @@ function distance_m(lng, lat, zlng, zlat)
   if ismissing(lng) || ismissing(lat) || ismissing(zlng) || ismissing(zlat)
     missing
   else
-    distance(LLA(lng, lat), LLA(zlng,zlat))
+    Geodesy.distance(Geodesy.LLA(lng, lat), Geodesy.LLA(zlng,zlat))
   end
 end
 #pharm[:zipdist] = distance_m(pharm[:lng],pharm[:lat], pharm[:ziplng],

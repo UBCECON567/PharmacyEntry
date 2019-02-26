@@ -10,4 +10,4 @@ function make(;file="pharmacyentry01-dataprep.jmd", nb = false)
   end
 end
 make(nb=true)
-#make(file="pharmacyentry02-model.jmd", nb=true)
+make(file="pharmacyentry02-model.jmd", nb=true)

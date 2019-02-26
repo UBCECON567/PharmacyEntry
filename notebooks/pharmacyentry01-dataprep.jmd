@@ -85,7 +85,7 @@ As in the previous assignment, we begin by loading required packages.
 ```julia
 using Pkg 
 Pkg.activate("..") 
-Pkg.instantiate()
+Pkg.resolve()
 
 using Revise
 if (!("../src" ∈ LOAD_PATH))
@@ -353,8 +353,36 @@ This will be continued in a second notebook. Save your data frame to
 load it there.
 ```julia
 import CSV
-df = census ## CHANGE THIS TO YOUR COMBINED census + pharmacy counts
-            ## data
+
+## For illustration purposes, here's a quick and dirty assignment of
+## pharmacies to markets. I would not advise using this exactly.
+subset = (x->x ∈ ["British Columbia",
+                  "Manitoba",
+                  "Manitoba/Saskatchewan"]).(census[:PROV_TERR_NAME_NOM] )
+df = census[subset,:]
+function closestPC(lat, lng; data=df)
+  d = distance_m.(lng, lat, data[:lng], data[:lat])
+  (dm, i) = findmin(d)
+  data[:GEO_CODE][i]
+end
+lat = pharm[:lat]
+lat[ismissing.(lat)] .= pharm[:ziplat][ismissing.(lat)]
+lng = pharm[:lng]
+lng[ismissing.(lng)] .= pharm[:ziplng][ismissing.(lng)]
+pharm[:pc_geo_code] =  closestPC.(lat,lng)
+df[:pharmacies] = (g->(sum(pharm[:pc_geo_code].==g))).(df[:GEO_CODE])
+
 CSV.write("cleandata.csv",df);
+```
+
+## Population centres assigned more than 10 pharmacies.
+```julia
+df[df[:pharmacies].>10,[:GEO_NAME, :pharmacies]]
+```
+
+## Population centres with 0 pharmacies
+
+```julia
+df[df[:pharmacies].==0,[:GEO_NAME, :pharmacies, :lat, :lng]]
 ```
 

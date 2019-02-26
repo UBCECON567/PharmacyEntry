@@ -1,7 +1,7 @@
 module PharmacyEntry
 
 using DataFrames, HTTP, Gumbo, Cascadia, CSV, PyCall, LightXML,
-  Statistics, PlotlyJS
+  Statistics, PlotlyJS, Distributions
 import ArchGDAL, Geodesy
 
 export
@@ -10,11 +10,14 @@ export
   loaddistancematrix,
   geocode!,
   plotmap,
-  checklatlng!
+  checklatlng!,
+  brentrysim,
+  distance_m
 
 include("geo.jl")
 include("pharmacies.jl")
 include("census.jl")
+include("entrymodel.jl")
 
 
 end # module PharmacyEntry
