@@ -32,7 +32,14 @@ function geocode!(df::AbstractDataFrame,
   keyfile = open(keyfilename,"r")
   key = read(keyfile, String);
   close(keyfile)
-  geocodio = pyimport("geocodio")
+  try 
+    geocodio = pyimport("geocodio")
+  catch err
+    @info "First attempt to import python module geocodio failed, attempting to install."
+    @info "If this still fails, it may work after restarting your Julia kernel."
+    run(`pip install --user pygeocodio`)
+    geocodio = pyimport("geocodio")    
+  end
   client = geocodio[:GeocodioClient](key)
   tmp = zeros(3,nrow(df))
   blocksize = 100
