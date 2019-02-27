@@ -85,7 +85,16 @@ As in the previous assignment, we begin by loading required packages.
 ```julia
 using Pkg 
 Pkg.activate("..") 
-Pkg.resolve()
+#Pkg.resolve()
+#Pkg.instantiate()
+#
+# If you are missing packages, you may have to uncomment one of the
+# two above lines. However, they seem to cause mysterious problems with
+# HTTP.get() (especially with https sites) later. If you find
+# HTTP.get() is hanging, then (1) run this cell with Pkg.instantiate()
+# once, (2) comment out Pkg.instantiate() (3) re-start the kernel and
+# re-run everything. 
+#
 
 using Revise
 if (!("../src" ∈ LOAD_PATH))

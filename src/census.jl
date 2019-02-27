@@ -116,8 +116,6 @@ function loadcensusdata(;redownload=false, reparse=false, regeocode=false)
       
       newdf = df[df[:name] .∈ [vars],[:GEO_CODE, :GEO_NAME, :name, :Total]]
       wdf = unstack(newdf, :name, :Total)
-
-      
       # For some baffling reason StatsCan doesn't include province identifiers in the Population Centres file
       # StatsCan own documents say,
       # It is recommended that the two-digit province/territory (PR) 
@@ -140,7 +138,7 @@ function loadcensusdata(;redownload=false, reparse=false, regeocode=false)
       end
       free(xdoc)
       wdf[:GEO_ID_CODE] = lpad.(wdf[:GEO_CODE],4,"0")
-      census = join(wdf, geocodes, on = :GEO_ID_CODE)
+      census = join(wdf, geocodes, on = :GEO_ID_CODE, kind=:left, indicator=:joinprov)
       CSV.write(censuscsv,census)
     end
   else
@@ -163,7 +161,7 @@ function loadcensusdata(;redownload=false, reparse=false, regeocode=false)
       # unzip progra
       run(`unzip $shpzip -d $unzippath`) 
     end
-    
+    @info "Adding :lng and :lat to census dataframe"
     pccentroids=ArchGDAL.registerdrivers() do
       ArchGDAL.read(shpfile) do sf
         layer = ArchGDAL.getlayer(sf, 0)
@@ -196,20 +194,20 @@ function loadcensusdata(;redownload=false, reparse=false, regeocode=false)
         centroids
       end      
     end
-    pccentroids[:GEO_ID_CODE] = parse.(Int64,
+    pccentroids[:GEO_CODE] = parse.(Int64,
                                        pccentroids[:GEO_ID_CODE])
-    sort!(pccentroids, :GEO_ID_CODE)
-    dupcodes=pccentroids[ pccentroids[:GEO_ID_CODE] .==
-                          vcat(0, pccentroids[:GEO_ID_CODE][1:(nrow(pccentroids)-1)]),:][:GEO_ID_CODE] 
+    sort!(pccentroids, :GEO_CODE)
+    dupcodes=pccentroids[ pccentroids[:GEO_CODE] .==
+                          vcat(0, pccentroids[:GEO_CODE][1:(nrow(pccentroids)-1)]),:][:GEO_CODE] 
     # pop centres on borders appear twice in shapefile, replace with
     # mean centroid
     for c in dupcodes
-      thisc = findall(pccentroids[:GEO_ID_CODE].==c)
+      thisc = findall(pccentroids[:GEO_CODE].==c)
       pccentroids[thisc,:lat] .= mean(pccentroids[thisc,:lat])
       pccentroids[thisc,:lng] .= mean(pccentroids[thisc,:lng])
       deleterows!(pccentroids, thisc[2:length(thisc)])
     end
-    census = join(census, pccentroids, on = :GEO_ID_CODE)
+    census = join(census, pccentroids, on = [:GEO_CODE, :GEO_ID_CODE], kind=:left, indicator=:joinll)
     CSV.write(censuscsv, census)
   end
   census
