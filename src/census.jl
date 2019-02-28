@@ -91,7 +91,7 @@ function loadcensusdata(;redownload=false, reparse=false, regeocode=false)
       unzippath = normpath(joinpath(@__DIR__,"..","data"))
       # the next command will likely fail on windows, use some  other
       # unzip progra
-      run(`unzip $zipfile -d $unzippath`) 
+      run(`unzip -n $zipfile -d $unzippath`) 
     end
     
     if (reparse || !isfile(censuscsv))
@@ -159,7 +159,7 @@ function loadcensusdata(;redownload=false, reparse=false, regeocode=false)
       unzippath = normpath(joinpath(@__DIR__,"..","data"))
       # the next command will likely fail on windows, use some  other
       # unzip progra
-      run(`unzip $shpzip -d $unzippath`) 
+      run(`unzip -n $shpzip -d $unzippath`) 
     end
     @info "Adding :lng and :lat to census dataframe"
     pccentroids=ArchGDAL.registerdrivers() do

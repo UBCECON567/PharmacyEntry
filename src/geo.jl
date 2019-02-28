@@ -165,7 +165,7 @@ function checklatlng!(df::AbstractDataFrame,
     unzippath = normpath(joinpath(@__DIR__,"..","data"))
     # the next command will likely fail on windows, use some  other
     # unzip progra
-    run(`unzip $shpzip -d $unzippath`)
+    run(`unzip -n $shpzip -d $unzippath`)
   end
   df[:zipmatch] = false
   df[:ziplat] = 0.0
