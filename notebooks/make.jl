@@ -9,5 +9,5 @@ function make(;file="pharmacyentry01-dataprep.jmd", nb = false)
     notebook(file, :pwd, -1, "--allow-errors")
   end
 end
-make(nb=true)
-make(file="pharmacyentry02-model.jmd", nb=true)
+#make(nb=true)
+make(file="pharmacyentry02-model.jmd", nb=false)

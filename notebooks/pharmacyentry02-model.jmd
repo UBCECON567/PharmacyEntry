@@ -75,16 +75,16 @@ $$
 \begin{align*}
    P(N = N_m | s_m, x_m, w_m; \theta) = & P(\pi_{m,N} \geq 0 \;\&\;
    \pi_{m,N+1} < 0) \\
-   = & P\left(-\left[s_m (\alpha_1 + x_m\beta - \sum_{n=2}^{N_m}
+   = & P\left(-\left[s_m (\alpha_1 + x_m\beta + \sum_{n=2}^{N_m}
     \alpha_n) - \left(\gamma_1 + \delta
     w_m + \sum_{n=2}^{N_m} \gamma_n \right)\right] \leq
-    \epsilon_m \leq -\left[s_m (\alpha_1 + x_m\beta - \sum_{n=2}^{N_m+1}
+    \epsilon_m \leq -\left[s_m (\alpha_1 + x_m\beta + \sum_{n=2}^{N_m+1}
     \alpha_n) - \left(\gamma_1 + \delta
     w_m + \sum_{n=2}^{N_m+1} \gamma_n \right)\right] \right) \\
-   = & F_\epsilon\left(-\left[s_m (\alpha_1 + x_m\beta - \sum_{n=2}^{N_m+1}
+   = & F_\epsilon\left(-\left[s_m (\alpha_1 + x_m\beta + \sum_{n=2}^{N_m+1}
     \alpha_n) - \left(\gamma_1 + \delta
     w_m + \sum_{n=2}^{N_m+1} \gamma_n \right)\right]\right) -
-    F_\epsilon\left( -\left[s_m (\alpha_1 + x_m\beta - \sum_{n=2}^{N_m}
+    F_\epsilon\left( -\left[s_m (\alpha_1 + x_m\beta + \sum_{n=2}^{N_m}
     \alpha_n) - \left(\gamma_1 + \delta
     w_m + \sum_{n=2}^{N_m} \gamma_n \right)\right] \right)
 \end{align*}
@@ -175,9 +175,8 @@ simulates this model. Use it to test your likelihood. Here is some
 code to simulate. You may need to adjust the parameters to get a
 decent distribution of number of firms (i.e. not all 0 or 5).
 ```julia
-
 # Simulating data
-using DataFrames
+using DataFrames, Statistics
 import CSV
 df = CSV.read("cleandata.csv")
 
@@ -210,15 +209,40 @@ println("Distribution of number of firms")
 for i in 0:length(α)
   println("$(mean(df[:nsim].==i))") 
 end
+
+S = df[svar]
+sag = zeros(length(S), length(α))
+for c in 1:length(α)
+  sag[:,c] = S*cumsum(α)[c] .- cumsum(γ)[c]
+end
+
 ```
 
 To estimate from the simulated data, you could do the following.
 ```julia; eval=false
 using Optim
+try 
+  using EntrySolution
+  # this contains my code for the likelihood and
+  # such, it's intentionally not included in the assignment
+catch
+end
 
 (loglike, unpack, pack) = brentrymodel(df, :nsim, svar, xvars, wvars)
 θ0 = pack(α,β,γ,δ)
-res = optimize(loglike, zeros(size(θ0)), BFGS(), autodiff=:forward)
+loglike(θ0)
+
+# initial values --- note that you may run into optimization problems if
+# s*cumsum(α)[c] - cumsum(γ)[c] is not decreasing with c. You can
+# ensure this by making α < 0 and γ>0
+βi = zeros(size(β))
+δi = zeros(size(δ))
+αi = zeros(size(α))
+γi = γ
+θi = pack(αi, βi, γi, δi)
+loglike(θ0)
+
+res = optimize((x)->(-loglike(x)), θ0, method=BFGS(), autodiff=:forward, show_trace=true)
 θhat = res.minimizer
 (αhat, βhat, γhat, δhat) = unpack(θhat)
 
