@@ -1,0 +1,14 @@
+Paul Schrimpf
+
+Students in UBC ECON567 contributed code for scraping pharmacies from
+province websites: 
+ Thomas Chan
+ Senna Eswaralingam
+ Yingxiang Li
+ Jiancong Liu
+ Matthew O'Brien
+ Deepak Punjabi
+ Liam MacDonald
+ Maria Rodriguez Vega
+ Zhaoxuan Wang
+ Wenjun Yang
