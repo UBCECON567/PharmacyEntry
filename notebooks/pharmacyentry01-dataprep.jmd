@@ -171,7 +171,7 @@ be an option to copy the corresponding CSS selector. Doing this on
 you will see that `tr.odd` and `tr.even` will select all rows from the
 table that we want. Here's some Julia code to select these rows.
 
-```julia
+```julia; eval=false
 using HTTP, Gumbo, Cascadia
 
 # download website
@@ -201,7 +201,7 @@ children corresponding to the 5 columns of the table. Now, we can
 extract the text from the 5 columns of each row and store it in a
 DataFrame. 
 
-```julia
+```julia;eval=false
 using DataFrames
 function parserow(row)
   fields = nodeText.(row.children)
@@ -233,7 +233,7 @@ into their parts. See [Julia's
 documentation](https://docs.julialang.org/en/v1.0/manual/strings/#Regular-Expressions-1)
 for more information. 
 
-```julia
+```julia; eval = false
 bc[:street] = (a->replace(a, r"(.+)\n.+, BC.+\n.+"s => s"\1")).(bc[:address])
 bc[:city]   = (a->replace(a, r".+\n(.+), BC.+\n.+"s => s"\1")).(bc[:address])
 bc[:zip]  =     (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).*"s => s"\1 \2")).(bc[:address])
@@ -367,7 +367,11 @@ import CSV
 ## pharmacies to markets. I would not advise using this exactly.
 subset = (x->x ∈ ["British Columbia",
                   "Manitoba",
-                  "Manitoba/Saskatchewan"]).(census[:PROV_TERR_NAME_NOM] )
+                  "Manitoba/Saskatchewan",
+                  "Newfoundland and Labrador",
+                  "New Brunswick",
+                  "New Brunswick/Quebec",
+                  "Prince Edward Island"]).(census[:PROV_TERR_NAME_NOM] )
 df = census[subset,:]
 function closestPC(lat, lng; data=df)
   d = distance_m.(lng, lat, data[:lng], data[:lat])
@@ -386,12 +390,12 @@ CSV.write("cleandata.csv",df);
 
 ## Population centres assigned more than 10 pharmacies.
 ```julia
-df[df[:pharmacies].>10,[:GEO_NAME, :pharmacies]]
+df[df[:pharmacies].>10,[:GEO_NAME, :pharmacies,  :PROV_TERR_NAME_NOM]]
 ```
 
 ## Population centres with 0 pharmacies
 
 ```julia
-df[df[:pharmacies].==0,[:GEO_NAME, :pharmacies, :lat, :lng]]
+df[df[:pharmacies].==0,[:GEO_NAME, :pharmacies, :lat, :lng, :PROV_TERR_NAME_NOM]]
 ```
 
