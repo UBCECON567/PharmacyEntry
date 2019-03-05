@@ -48,6 +48,16 @@ end
 using PharmacyEntry
 ```
 
+### Problem 0: rerun part 1
+
+I have merged everyone's province specific parsing code, geocoded the
+pharmacies, and updated the data in the git repository. Update your
+git folder, and rerun your notebook from part 1 to create a
+`cleandata.csv` with data from all the parsed provinces. When
+complete, cleandata.csv should have about 222 rows (perhaps less if
+you decided to eliminate population centres that are too big or too
+close together). 
+
 # Part IV - Model
 
 As in @br1991, we will assume that the profits per pharmacy in
@@ -93,7 +103,7 @@ $$
 The loglikelihood is then
 
 $$
-\mathcal{L}(\theta) = \sum_{m=1}^M \log P(N = N_m | s_m, x_m, w_m;
+\mathcal{L}(\theta) = \frac{1}{M} \sum_{m=1}^M \log P(N = N_m | s_m, x_m, w_m;
 \theta),
 $$
 
@@ -108,7 +118,7 @@ $$
 Write a function to compute the loglikelihood. You may do this however
 you want, but I suggest using the following skeleton code.
 ```julia; eval=false
-using Distributions
+using Distributions, DataFrames
 
 """
          brentrymodel(data::AbstractDataFrame,
@@ -129,8 +139,6 @@ Inputs:
 - `Fϵ` cdf of ϵ, optional, defaults to standard normal cdf
 
 The same variables may be included in both `x` and `w`.
-
-
 """
 function brentrymodel(data::AbstractDataFrame,
                       n::Symbol,
@@ -139,7 +147,7 @@ function brentrymodel(data::AbstractDataFrame,
                       w::Array{Symbol,1};
                       Fϵ = x->cdf(Normal(),x))
   # skip observations with missings
-  vars = [n, s, x..., w...]
+  vars = unique([n, s, x..., w...])
   inc = completecases(data[vars])
 
   N = disallowmissing(data[n][inc])
@@ -148,7 +156,7 @@ function brentrymodel(data::AbstractDataFrame,
   W = disallowmissing(convert(Matrix, data[w][inc,:]))
   Nmax = maximum(N)
   function packparam(α,β,γ,δ)
-    θ = (α,β,γ,δ)
+    θ = [α;β;γ;δ]
   end
   function unpackparam(θ)
     α = θ[1:Nmax]
@@ -157,9 +165,17 @@ function brentrymodel(data::AbstractDataFrame,
     δ = θ[(Nmax+size(X,2)+Nmax+1):end]
     (α,β,γ,δ)
   end
+
+  # While maximizing the likelihood some parameters might result in
+  # the likelihood being 0 (or very close to 0) taking log would 
+  # create problems. Use logfinite from PharmacyEntry.jl instead
+  logf = logfinite(exp(-100.0) ) # could adjust the exp(-100.0)
+
   function loglike(θ)
     (α,β,γ,δ) = unpackparam(θ)
-    error("You must write the body of this function")    
+    error("You must write the body of this function")
+    # P = array of likelihoods for each observation
+    # return(mean(logf.(P))) 
   end
   
   return(loglike=loglike, unpack=unpackparam, pack=packparam)
@@ -176,79 +192,147 @@ code to simulate. You may need to adjust the parameters to get a
 decent distribution of number of firms (i.e. not all 0 or 5).
 ```julia
 # Simulating data
-using DataFrames, Statistics
+using DataFrames, Statistics, StatsBase
 import CSV
 df = CSV.read("cleandata.csv")
 
+# Important to scale variables to avoid numerical problems in both
+# simulation & estimation
+df[:pop10k] = df[Symbol("Population, 2016")]./10000
+df[:logpop10k] = log.(df[:pop10k])
+df[:income10k] = df[Symbol("Average total income in 2015 among recipients (\$)")]./10000
+df[:density1k] = df[Symbol("Population density per square kilometre")]./1000
+df[:logdensity] = log.(df[:density1k])
+df[:logarea] = log.(df[Symbol("Land area in square kilometres")])
+df[:mediumage] = df[Symbol("15 to 64 years")]./100
 # parameters for simulation
-α = [-0.13, -0.29, -0.19, -0.2, -0.1] # loosely taken from Bresnehan & Reiss
-                                      # Table 4, note that my
-                                      # notation has α[2:n] equal to
-                                      # their -α[2:n]
-γ = [0.5,   1.,  1.,  1., 1.]
+n_obs_sim = 500 # you might want to adjust this. You want it to be
+                # large enough that your estimates are close to the
+                # true values, but small enough that it doesn't take
+                # too long to estimate
+
+# the maximum number of pharmacies in the simulated data will be
+# length(α) + 1
+α = [1.0, -1.]  
+γ = [1.0,  1.]
 # you may have to adjust the parameters to get a reasonable distribution of
 # number of pharmacies across markets
-svar = Symbol("Population, 2016")
-α = α./mean(df[svar])  # scale to fit this data better
-β = [1., 10., 2.]
-xvars = [Symbol("Employment rate"),
-         Symbol("Average total income in 2015 among recipients (\$)"),
-         Symbol("65 years and over")]
-for j in 1:length(β)
-  β[j] = β[j] / mean(df[xvars[j]].*df[svar])
-end
+svar = :pop10k
+β = [1., 1.]
+xvars = [:income10k,
+         :mediumage]
 δ = [1., 1.]
-wvars = [Symbol("Population density per square kilometre"),
-         Symbol("Land area in square kilometres")]
-for j in 1:length(δ)
-  δ[j] = δ[j] / maximum(df[wvars[j]])
-end
+wvars = [:logdensity,
+         :logarea]
+simdf = df[sample(1:nrow(df), n_obs_sim),:]
 
-df[:nsim] = brentrysim(df, svar, xvars, wvars, α,β,γ,δ)
+simdf[:nsim] = brentrysim(simdf, svar, xvars, wvars, α,β,γ,δ)
 println("Distribution of number of firms")
 for i in 0:length(α)
-  println("$(mean(df[:nsim].==i))") 
-end
-
-S = df[svar]
-sag = zeros(length(S), length(α))
-for c in 1:length(α)
-  sag[:,c] = S*cumsum(α)[c] .- cumsum(γ)[c]
+  println("$(mean(simdf[:nsim].==i))") 
 end
 
 ```
 
 To estimate from the simulated data, you could do the following.
-```julia; eval=false
-using Optim
+```{julia; eval=true}
+using Optim, ForwardDiff, LinearAlgebra, PrettyTables
 try 
   using EntrySolution
   # this contains my code for the likelihood and
-  # such, it's intentionally not included in the assignment
+  # it's intentionally not included in the assignment
 catch
 end
 
-(loglike, unpack, pack) = brentrymodel(df, :nsim, svar, xvars, wvars)
+(loglike, unpack, pack) = brentrymodel(simdf, :nsim, svar, xvars, wvars)
 θ0 = pack(α,β,γ,δ)
 loglike(θ0)
 
-# initial values --- note that you may run into optimization problems if
+# initial values --- note that you may run into optimization problems
+# with poor initial values. This is especially likely if
 # s*cumsum(α)[c] - cumsum(γ)[c] is not decreasing with c. You can
 # ensure this by making α < 0 and γ>0
 βi = zeros(size(β))
 δi = zeros(size(δ))
 αi = zeros(size(α))
-γi = γ
-θi = pack(αi, βi, γi, δi)
-loglike(θ0)
+γi = ones(size(γ))
+θi = pack(αi, βi, γi, δi);
+loglike(θi)
 
-res = optimize((x)->(-loglike(x)), θ0, method=BFGS(), autodiff=:forward, show_trace=true)
+res = optimize((x)->(-loglike(x)), θi, method=BFGS(),
+               autodiff=:forward, show_trace=true)
+# if you have problems, maybe look at one parameter at a time, e.g.
+# res = optimize((x)->(-loglike(pack(x, β, γ, δ))), αi, method=BFGS(), autodiff=:forward, show_trace=true) 
 θhat = res.minimizer
 (αhat, βhat, γhat, δhat) = unpack(θhat)
 
+# calculate standard errors
+H = ForwardDiff.hessian(loglike,θhat)
+Varθ = -inv(H)./nrow(simdf);
+(seα, seβ, seγ, seδ) = unpack(sqrt.(diag(Varθ)))
+
+# Print a nice(ish) table
+header= ["Parameter", "Truth", "Estimate", "(SE)"];
+param = [["α[$i]" for i in eachindex(α)];
+         ["β[$i]" for i in eachindex(β)];
+         ["γ[$i]" for i in eachindex(γ)];
+         ["δ[$i]" for i in eachindex(δ)]];
+# highlight estimates that reject H0 : estimate = true at 99% level
+h1 = Highlighter(
+  f = (tbl, i, j)->( (j==3 || j==4) &&
+                   abs((tbl[i,2]-tbl[i,3])/tbl[i,4]).>quantile(Normal(),
+                                                               0.995)),
+  crayon = crayon"red bold"
+);
 ```
-Ideally, you would do this many times, and verify that on average the
-estimates are close to the true parameters. 
 
+```{julia; term=true}
+tbl = pretty_table(hcat(param, θ0, θhat, sqrt.(diag(Varθ))), header,
+                   formatter = Dict(3 => (v,i) -> round(v,digits=3),
+                                    4 => (v,i) -> "($(round(v,digits=3)))"),
+                   highlighters=tuple(h1))
+```
 
-TO BE CONTINUED
+Ideally, you would do this many times, and verify that as the sample
+size increases, the estimates are close to the true parameters. Note
+that maximum likelihood is generally only consistent, not
+unbiased. Also, I have semi-deliberately setup the simulation so that
+there is a pair of parameters that are not well identified
+separately. Can you figure out what the problem is?
+
+### Problem 3: estimation
+
+Estimate the model on the real data. oBriefly discuss your choice of "X" and
+"W" variables. Be sure to check the output of `optimize().` You may
+have to do some tweaking of initial values and/or optimization
+algorithm to get convergence. As in the simulation, report both your
+parameter estimates and standard errors.
+
+### Problem 4: fit
+
+Create tables and/or figures that show how well your estimates and
+model fit the data. 
+
+### Problem 5: entry thresholds
+
+Compute entry thresholds and create a figure similar to Figure 4 from
+@br1991. Since this data generally has more pharmacies than in
+@br1991, you should probably choose something larger than 5 for the
+maximum N to plot. Use the delta method to compute standard errors for
+your $s_N$ and add confidence bands to the figure.
+
+```julia; eval = true
+using ForwardDiff
+# delta method demo
+estimate = [1.0, 1.0]
+variance_estimate = [1.0 0.0;
+                     0.0 2.0]
+function func_of_estimate(θ)
+  # you'd replace this with your function to calculate the size thresholds
+  [sum((θ) ./ (θ.*θ)), θ[1]*θ[2], θ[1] - θ[2]]
+end
+sn = func_of_estimate(estimate)
+∇sn = ForwardDiff.jacobian(func_of_estimate, estimate)
+variance_sn = ∇sn*variance_estimate*∇sn'
+```
+

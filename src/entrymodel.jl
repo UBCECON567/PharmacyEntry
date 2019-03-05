@@ -29,8 +29,7 @@ function brentrysim(data::AbstractDataFrame,
                     w::Array{Symbol,1},
                     α,β,γ,δ;
                     distϵ = Normal())  
-
-  vars = [s, x..., w...]
+  vars = unique([s, x..., w...])
   inc = completecases(data[vars])
   S = disallowmissing(data[s][inc])
   X = disallowmissing(convert(Matrix, data[x][inc,:]))
@@ -38,11 +37,13 @@ function brentrysim(data::AbstractDataFrame,
   ϵ = rand(distϵ, length(S))
   
   π0 = S.*(X*β) - W*δ + ϵ
-  π = similar(π0, length(S), length(α))
+  π = similar(π0, length(S), length(α)+1)
   for n in 1:length(α)
     π[:,n] = π0 + S*sum(α[1:n]) .- sum(γ[1:n])
   end
-  n = mapslices(x->sum(x.>=0), π, dims=2)
+  π[:,length(α)+1] .= -1.0
+  n = mapslices(x->findfirst(x.<0), π, dims=2)
+  n = n .- 1
   if (sum(inc) != length(inc)) 
     N = Array{Union{Missing, Integer},1}(undef, nrow(data))
     N .= missing
