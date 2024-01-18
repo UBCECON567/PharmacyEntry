@@ -1,19 +1,5 @@
 # Functions related to geography. Looking up lat/lon, distances, and so
 # on.
-
-
-################################################################################
-#
-# I gave up on using google maps for this project. It seems like
-# storing query results would violate Google's TOS. Also, getting the
-# distance matrix for all 1000 pharmacies by 1000 populations =
-# 1,000,000 queries = $5,000! Of course many of these queries could be
-# avoided by e.g. only doing ones within X straightline distance, but
-# it'll still cost around $25 and violate the TOS.
-#
-################################################################################
-
-
 """
      geocode!(df::AbstractDataFrame,address::Symbol)
 
@@ -32,13 +18,13 @@ function geocode!(df::AbstractDataFrame,
   keyfile = open(keyfilename,"r")
   key = read(keyfile, String);
   close(keyfile)
-  geocodio = try 
+  geocodio = try
     pyimport("geocodio")
   catch err
     @info "First attempt to import python module geocodio failed, attempting to install."
     @info "If this still fails, it may work after restarting your Julia kernel."
     run(`pip install --user pygeocodio`)
-    pyimport("geocodio")    
+    pyimport("geocodio")
   end
   client = geocodio[:GeocodioClient](key)
   tmp = zeros(3,nrow(df))
@@ -84,28 +70,28 @@ Plots map of census population centers and pharmacies.
 function plotmap(census, pharm)
 
   trace = scattergeo(;locationmode="ISO-3",
-                     lat=census[:lat],
-                     lon=census[:lng],
+                     lat=census[!,:lat],
+                     lon=census[!,:lng],
                      hoverinfo="text",
                      text=[string(x[:GEO_NAME], " pop: ", x[Symbol("Population, 2016")]) for x in eachrow(census)],
-                     marker_size=log.(census[Symbol("Population, 2016")]),
+                     marker_size=log.(census[!,Symbol("Population, 2016")]),
                      marker_line_color="black", marker_line_width=2)
-  idx  = pharm[:zipmatch]
-  tp1 = scattergeo(;lat=pharm[:lat][idx], lon=pharm[:lng][idx],
+  idx  = pharm[!,:zipmatch]
+  tp1 = scattergeo(;lat=pharm[idx,:lat], lon=pharm[idx,:lng],
                   marker_size = 10,
                   marker_color="green")
-  tp2 = scattergeo(;lat=pharm[:lat][.!idx], lon=pharm[:lng][.!idx],
+  tp2 = scattergeo(;lat=pharm[.!idx,:lat], lon=pharm[.!idx,:lng],
                    marker_size = 10,
                    hoverinfo="text",
                    text=[string(x[:address], " zip: ",
                                 x[:zip])
                          for x in eachrow(pharm[.!idx,:])],
                    marker_color="red")
-  nzp = pharm[.!pharm[:zipmatch],:]
+  nzp = pharm[.!pharm[!,:zipmatch],:]
   tozipctr = Array{typeof(trace)}(undef,nrow(nzp))
   for r in 1:nrow(nzp)
-    tozipctr[r] = scattergeo(;lat=[nzp[:lat][r], nzp[:ziplat][r]],
-                             lon= [nzp[:lng][r], nzp[:ziplng][r]],
+    tozipctr[r] = scattergeo(;lat=[nzp[r,:lat], nzp[r,:ziplat]],
+                             lon= [nzp[r,:lng], nzp[r,:ziplng]],
                              mode = "lines",
                              hoverinfo = "none",
                              line_color="black")
@@ -167,50 +153,47 @@ function checklatlng!(df::AbstractDataFrame,
     # unzip progra
     run(`unzip -n $shpzip -d $unzippath`)
   end
-  df[:zipmatch] = false
-  df[:ziplat] = 0.0
-  df[:ziplng] = 0.0
-  df[:fsa] = (x->replace(x,r"(\p{L}\d\p{L}).?(\d\p{L}\d)" =>
-                         s"\1")).(df[zip])
+  df[!,:zipmatch] .= false
+  df[!,:ziplat] .= 0.0
+  df[!,:ziplng] .= 0.0
+  df[!,:fsa] = (x->replace(x,r"(\p{L}\d\p{L}).?(\d\p{L}\d)" =>
+                         s"\1")).(df[!,zip])
 
-  ArchGDAL.registerdrivers() do
-    ArchGDAL.read(shpfile) do sf
-      layer = ArchGDAL.getlayer(sf, 0)
-      nlayer = ArchGDAL.nfeature(layer)
-      for i in 0:(nlayer-1)
-        ArchGDAL.getfeature(layer, i) do feature
-          fsa = ArchGDAL.getfield(feature, 0)
-          m = findall(fsa.==df[:fsa])
-          if (length(m)>0)
-            geom = ArchGDAL.getgeomfield(feature,0)
-            ArchGDAL.importEPSG(3347) do source
-              ArchGDAL.importEPSG(4326) do target
-                ArchGDAL.createcoordtrans(source, target) do transform
-                  ArchGDAL.transform!(geom, transform)
-                end
+  ArchGDAL.read(shpfile) do sf
+    layer = ArchGDAL.getlayer(sf, 0)
+    nlayer = ArchGDAL.nfeature(layer)
+    for i in 0:(nlayer-1)
+      ArchGDAL.getfeature(layer, i) do feature
+        fsa = ArchGDAL.getfield(feature, 0)
+        m = findall(fsa.==df[!,:fsa])
+        if (length(m)>0)
+          geom = ArchGDAL.getgeom(feature,0)
+          ArchGDAL.importEPSG(3347) do source
+            ArchGDAL.importEPSG(4326) do target
+              ArchGDAL.createcoordtrans(source, target) do transform
+                ArchGDAL.transform!(geom, transform)
               end
             end
-            cent = ArchGDAL.centroid(geom)
-            cent=ArchGDAL.toWKT(cent)
-            # convert string to Array{Float64,1}
-            cent = parse.(Float64,split(replace(cent, r"POINT |\)|\("
-                                                => "")," "))
-            df[:ziplng][m] .= cent[1]
-            df[:ziplat][m] .= cent[2]
-            for j in m
-              if ismissing(df[lng][j])
-                df[:zipmatch][j] = false
-              else
-                phgeom = ArchGDAL.createpoint(df[lng][j], df[lat][j])
-                df[:zipmatch][j] = ArchGDAL.intersects(geom, phgeom) # contains?
-              end
-            end # for j
-          end # if length(m)>0
-        end # do feature
-      end # for i in 0:nlayer-1
-    end # do sf
-  end # do registerdrivers()
-
+          end
+          cent = ArchGDAL.centroid(geom)
+          cent=ArchGDAL.toWKT(cent)
+          # convert string to Array{Float64,1}
+          cent = parse.(Float64,split(replace(cent, r"POINT |\)|\("
+                                              => "")," "))
+          df[m,:ziplng] .= cent[2]
+          df[m,:ziplat] .= cent[1]
+          for j in m
+            if ismissing(df[j,lng])
+              df[j,:zipmatch] = false
+            else
+              phgeom = ArchGDAL.createpoint(df[j,lat], df[j,lng])
+              df[j,:zipmatch] = ArchGDAL.intersects(geom, phgeom) # contains?
+            end
+          end # for j
+        end # if length(m)>0
+      end # do feature
+    end # for i in 0:nlayer-1
+  end # do sf
   df
 end
 
@@ -224,7 +207,7 @@ function distance_m(lng, lat, zlng, zlat)
   if ismissing(lng) || ismissing(lat) || ismissing(zlng) || ismissing(zlat)
     missing
   else
-    Geodesy.distance(Geodesy.LLA(lng, lat), Geodesy.LLA(zlng,zlat))
+    Geodesy.euclidean_distance(Geodesy.LLA(lng, lat), Geodesy.LLA(zlng,zlat))
   end
 end
 #pharm[:zipdist] = distance_m(pharm[:lng],pharm[:lat], pharm[:ziplng],

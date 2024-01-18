@@ -1,13 +1,13 @@
 """
-    loadpharmacydata(;redownload=false, regeocode=false) 
- 
-(Down)loads list of pharmacies in various Canadian provinces. 
+    loadpharmacydata(;redownload=false, regeocode=false)
+
+(Down)loads list of pharmacies in various Canadian provinces.
 
 Optional arguments:
   - `redownload` if true, will redownload source files, else tries to
      load from data directory
   - `regeocode` if true, will recreate geocodes, else loads from data
-     directory 
+     directory
 
 Output:
   - DataFrame listing pharmacies and their addresses
@@ -18,25 +18,25 @@ function loadpharmacydata(;redownload=false, regeocode=false)
   if (redownload || !isfile(csvfile))
     bc = loadBCdata(redownload)
     mb = loadMBdata(redownload)
-    nb = loadNBdata(redownload) 
+    nb = loadNBdata(redownload)
     nl = loadNLdata(redownload)
     pe = loadPEdata(redownload)
     ## Additional province data can be found from links at
     ## https://www.pharmacists.ca/pharmacy-in-canada/directory-of-pharmacy-organizations/provincial-regulatory-authorities1/
-    
-    df = vcat(bc, mb, nb, nl, pe)     
-    df[:id] = 1:nrow(df)    
+
+    df = vcat(bc, mb, nb, nl, pe)
+    df[:id] = 1:nrow(df)
     CSV.write(csvfile, df)
-  else     
+  else
     println("reading pharmacy data from $csvfile")
-    df = CSV.read(csvfile)
+    df = CSV.read(csvfile,DataFrame)
   end
-  
-  if (regeocode || !(:lat ∈ names(df)))
-    df[:address_original] = df[:address]
-    ## Look up latitude and longitude of each pharmacy    
-    df[:address] =  (df[:street].*", ".*df[:city] .* ", " .*
-                     df[:province] .* "  " .* df[:zip] .* ", Canada") 
+
+  if (regeocode || !("lat" ∈ names(df)))
+    df[!,:address_original] = df[!,:address]
+    ## Look up latitude and longitude of each pharmacy
+    df[!,:address] =  (df[!,:street].*", ".*df[!,:city] .* ", " .*
+                     df[!,:province] .* "  " .* df[!,:zip] .* ", Canada")
     geocode!(df, :address)
     CSV.write(csvfile, df)
   end
@@ -51,7 +51,7 @@ Load or download data on BC pharmacies
 
 Inputs:
 - `redownload`: whether to redownload data even if csv file exists.
-Output: 
+Output:
 - Dataframe containing information on pharmacies
 """
 function loadBCdata(redownload=false)
@@ -59,7 +59,7 @@ function loadBCdata(redownload=false)
   if (redownload || !isfile(csvfile))
     r = HTTP.get("http://www.bcpharmacists.org/list-community-pharmacies");
     h = parsehtml(String(r.body));
-    
+
     rows = eachmatch(Selector("tr.odd, tr.even"), h.root);
     function parserow(row)
       fields = nodeText.(row.children)
@@ -67,13 +67,13 @@ function loadBCdata(redownload=false)
     end
     txt = vcat(parserow.(rows)...)
     bc = DataFrame(txt, [:name, :address, :manager, :phone, :fax])
-    bc[:street] = (a->replace(a, r"(.+)\n.+, BC.+\n.+"s => s"\1")).(bc[:address])
-    bc[:city] = (a->replace(a, r".+\n(.+), BC.+\n.+"s => s"\1")).(bc[:address])
-    bc[:zip]  = (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).*"s => s"\1 \2")).(bc[:address])
-    bc[:province] = "BC"
-    CSV.write(csvfile, bc)    
+    bc[!,:street] = (a->replace(a, r"(.+)\n.+, BC.+\n.+"s => s"\1")).(bc[:address])
+    bc[!,:city] = (a->replace(a, r".+\n(.+), BC.+\n.+"s => s"\1")).(bc[:address])
+    bc[!,:zip]  = (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).*"s => s"\1 \2")).(bc[:address])
+    bc[!,:province] = "BC"
+    CSV.write(csvfile, bc)
   else
-    bc = CSV.read(csvfile)
+    bc = CSV.read(csvfile, DataFrame)
   end
   return(bc)
 end
@@ -86,15 +86,15 @@ Load or download data on MB pharmacies
 
 Inputs:
 - `redownload`: whether to redownload data even if csv file exists.
-Output: 
+Output:
 - Dataframe containing information on pharmacies
 """
 function loadMBdata(redownload=false)
   csvfile=normpath(joinpath(@__DIR__,"..","data","mb-pharmacies.csv"))
-  if (redownload || !isfile(csvfile))  
+  if (redownload || !isfile(csvfile))
     r = HTTP.get("https://mpha.in1touch.org/company/roster/companyRosterView.html?companyRosterId=20");
     h = parsehtml(String(r.body));
-    
+
     rows = eachmatch(Selector("div > div > table > tbody"),h.root);
     println(size(rows))
     rows = rows[2:length(rows)]; # first one is empty
@@ -111,9 +111,9 @@ function loadMBdata(redownload=false)
     end
     mb = DataFrame(vcat(parserowMB.(rows)...),
                    [:name, :address, :manager,:phone, :fax, :street])
-    mb[:province] = "MB"
-    mb[:city] = (a->replace(a, r"(^.+), M.+" => s"\1")).(mb[:address])
-    mb[:zip]  = (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).*"s => s"\1 \2")).(mb[:address])
+    mb[!,:province] = "MB"
+    mb[!,:city] = (a->replace(a, r"(^.+), M.+" => s"\1")).(mb[:address])
+    mb[!,:zip]  = (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).*"s => s"\1 \2")).(mb[:address])
     CSV.write(csvfile,mb)
   else
     mb = CSV.read(csvfile)
@@ -130,21 +130,21 @@ Load or download data on NB pharmacies - modifies functions for Manitoba and BC 
 As above:
 Inputs:
 - `redownload`: whether to redownload data even if csv file exists.
-Output: 
+Output:
 - Dataframe containing information on pharmacies
 """
 function loadNBdata(redownload=false)
   # Contributors: Senna Eswaralingam, Matthew O'Brien, Yingxiang Li, & Jiancong Liu
   csvfile=normpath(joinpath(@__DIR__,"..","data","nb-pharmacies.csv"))
-    
-  if (redownload || !isfile(csvfile))  
+
+  if (redownload || !isfile(csvfile))
     nb = 1 #to create a variable  that allows the fucntion below to be append contact from each scraped webpage to existing data
     for i = 1:5 #including this as New Brunswick's pharmacy contacts span 5 separate pages.
       web = string("https://www.nbpharmacists.ca/client/roster/clientRosterView.html?clientRosterId=208&page=", i)
       r =  HTTP.get(web) ;
-      
+
       h = parsehtml(String(r.body));
-      
+
       rows = eachmatch(Selector("div > div > table > tbody"),h.root);
       println(size(rows))
       rows = rows[2:length(rows)]; # first one is empty
@@ -158,37 +158,37 @@ function loadNBdata(redownload=false)
         address = string(street, city_prov_zip)
         txt = [name manager phone fax street city_prov_zip address]
       end
-      
+
       n = DataFrame(vcat(parserowNB.(rows)...),
                     [:name, :manager, :phone, :fax, :street, :city_prov_zip, :address])
-      n[:city]   = (a->replace(a, r"(.+) NB .+"s => s"\1")).(n[:city_prov_zip])
-      n[:zip]  =     (a->replace(a,r".+ NB (.+)" => s"\1")).(n[:city_prov_zip])
-      n[:province] = "NB" 
+      n[!,:city]   = (a->replace(a, r"(.+) NB .+"s => s"\1")).(n[:city_prov_zip])
+      n[!,:zip]  =     (a->replace(a,r".+ NB (.+)" => s"\1")).(n[:city_prov_zip])
+      n[!,:province] = "NB"
       deletecols!(n, :city_prov_zip) #to align dataframe with manitoba and bc tables
-      #Code to append scraped data from the latest iteration to the dataframe    
+      #Code to append scraped data from the latest iteration to the dataframe
       if nb == 1
         nb = n
       else
         nb = vcat(nb,n)
-      end      
+      end
     end  # for i
-        
+
     CSV.write(csvfile,nb)
-          
+
   else
-    nb = CSV.read(csvfile)
+    nb = CSV.read(csvfile, DataFrame)
   end # if redownload
   return(nb)
 end
 
 
 """
-Load or download data on NL pharmacies 
+Load or download data on NL pharmacies
 
 As above:
 Inputs:
 - `redownload`: whether to redownload data even if csv file exists.
-Output: 
+Output:
 - Dataframe containing information on pharmacies
 """
 function loadNLdata(redownload=false)
@@ -196,7 +196,7 @@ function loadNLdata(redownload=false)
   csvfile=normpath(joinpath(@__DIR__,"..","data","nl-pharmacies.csv"))
   if (redownload || !isfile(csvfile))
     r = HTTP.get("https://nlpb.in1touch.org/company/roster/companyRosterView.html?companyRosterId=12");
-    h = parsehtml(String(r.body));  
+    h = parsehtml(String(r.body));
     rows = eachmatch(Cascadia.Selector("div > div > table > tbody"),h.root);
     rows = rows[2:length(rows)];
     function parserowNL(row)
@@ -211,16 +211,16 @@ function loadNLdata(redownload=false)
     end
     nl = DataFrame(vcat(parserowNL.(rows)...),
                    [:name, :street, :address, :manager,:phone, :fax ,:city ])
-    nl[:street] = (a->replace(a, r"(P.O.)? ([Bb]ox)? \d+"s => s"")).(nl[:street])
-    nl[:address] = (a->replace(a, r"(P.O.)? ([Bb]ox)? \d+"s => s"")).(nl[:address])
-    nl[:address] = (a->replace(a, r"Licence #:[A-Z][A-Z]-\d+"s => s"")).(nl[:address])
-    nl[:zip] = (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).*"s => s"\1 \2")).(nl[:address])
-    nl[:city] = (a->replace(a,r"NL.*"s => s"")).(nl[:city])
-    nl[:manager] = (a->replace(a,r"Pharmacist-in-Charge: \d+-\d+"s => s"")).(nl[:manager])
-    nl[:province] = "NL"
-    CSV.write(csvfile, nl)    
+    nl[!,:street] = (a->replace(a, r"(P.O.)? ([Bb]ox)? \d+"s => s"")).(nl[:street])
+    nl[!,:address] = (a->replace(a, r"(P.O.)? ([Bb]ox)? \d+"s => s"")).(nl[:address])
+    nl[!,:address] = (a->replace(a, r"Licence #:[A-Z][A-Z]-\d+"s => s"")).(nl[:address])
+    nl[!,:zip] = (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).*"s => s"\1 \2")).(nl[:address])
+    nl[!,:city] = (a->replace(a,r"NL.*"s => s"")).(nl[:city])
+    nl[!,:manager] = (a->replace(a,r"Pharmacist-in-Charge: \d+-\d+"s => s"")).(nl[:manager])
+    nl[!,:province] = "NL"
+    CSV.write(csvfile, nl)
   else
-    nl = CSV.read(csvfile)
+    nl = CSV.read(csvfile, DataFrame)
   end
   return(nl)
 end
@@ -234,18 +234,18 @@ Load or download data on PE pharmacies
 
 Inputs:
 - `redownload`: whether to redownload data even if csv file exists.
-Output: 
+Output:
 - Dataframe containing information on pharmacies
 """
 function loadPEdata(redownload=false)
   # Contributors: Liam MacDonald, Thomas Chan, Maria Rodriguez Vega
   csvfile=normpath(joinpath(@__DIR__,"..","data","pe-pharmacies.csv"))
-  if (redownload || !isfile(csvfile)) 
+  if (redownload || !isfile(csvfile))
     r = HTTP.get("https://pei.in1touch.org/client/roster/clientRosterView.html?clientRosterId=108");
-    h = parsehtml(String(r.body)); 
+    h = parsehtml(String(r.body));
     rows = eachmatch(Selector("div > div > div > table > tbody"), h.root);
     println(size(rows))
-    rows = rows[2:length(rows)]; #first one is empty   
+    rows = rows[2:length(rows)]; #first one is empty
     function parserowPE(row)
       name = nodeText(row.children[1])
       tmp = nodeText.(row.children[2].children[1].children[1].children)
@@ -255,7 +255,7 @@ function loadPEdata(redownload=false)
       address = tmp[5]
       tmp = nodeText.(row.children[2].children[1].children[1].children[4].children)
       phone = tmp[2]
-      fax = try #try and catch missing data error 
+      fax = try #try and catch missing data error
         fax = tmp[5]
       catch y
         if isa(y, BoundsError)
@@ -265,16 +265,14 @@ function loadPEdata(redownload=false)
       txt = [name manager street address phone fax]
     end
     pe = DataFrame(vcat(parserowPE.(rows)...),
-                   [:name, :manager, :street, :address, :phone, :fax]) 
-    pe[:province] = "PE"
-    pe[:zip]  = (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).*"s => s"\1 \2")).(pe[:address])
-    pe[:city] = (a->replace(a, r"(^.+), PE.+"s => s"\1")).(pe[:address])
-    pe[:name] = (a->replace(a, r"(^.+), .+"s => s"\1")).(pe[:name])
+                   [:name, :manager, :street, :address, :phone, :fax])
+    pe[!,:province] = "PE"
+    pe[!,:zip]  = (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).*"s => s"\1 \2")).(pe[:address])
+    pe[!,:city] = (a->replace(a, r"(^.+), PE.+"s => s"\1")).(pe[:address])
+    pe[!,:name] = (a->replace(a, r"(^.+), .+"s => s"\1")).(pe[:name])
     CSV.write(csvfile,pe)
   else
-    pe = CSV.read(csvfile)
-  end  
+    pe = CSV.read(csvfile,DataFrame)
+  end
   return(pe)
 end
-
-

@@ -20,7 +20,7 @@ Commons Attribution-ShareAlike 4.0 International License</a>.
 This document was created using Weave.jl. The code is available in
 [on github](https://github.com/ECON567/PharmacyEntry). The same
 document generates both static webpages and associated jupyter
-notebooks. 
+notebooks.
 
 $$
 \def\indep{\perp\!\!\!\perp}
@@ -32,16 +32,16 @@ $$
 \newcommand{\abs}[1]{\left\vert {#1} \right\vert}
 \DeclareMathOperator*{\argmax}{arg\,max}
 \DeclareMathOperator*{\argmin}{arg\,min}
-\def\inprob{\,{\buildrel p \over \rightarrow}\,} 
-\def\indist{\,{\buildrel d \over \rightarrow}\,} 
+\def\inprob{\,{\buildrel p \over \rightarrow}\,}
+\def\indist{\,{\buildrel d \over \rightarrow}\,}
 $$
 
 # Introduction
 
 This assignment will estimate a model of pharmacy entry inspired by
-@br1991. 
+@br1991.
 
-## Getting started 
+## Getting started
 
 [https://vse.syzygy.ca](https://vse.syzygy.ca) provides a convenient
 browser based interface to Julia. Open it and log in. This assignment
@@ -49,14 +49,14 @@ is in a git repository at
 [https://github.com/UBCECON567/PharmacyEntry](https://github.com/UBCECON567/PharmacyEntry). Start
 by cloning the git repository to your syzygy directory. Open a
 terminal in syzygy (File -> New -> Terminal). This will open a Linux
-shell in your browser. To clone the git repository, enter 
+shell in your browser. To clone the git repository, enter
 
 `
 git clone https://github.com/UBCECON567/PharmacyEntry
 `
 
 This will create a directory called `PharmacyEntry` containing all the
-files related to this assignment. 
+files related to this assignment.
 
 Clicking on the folder icon near the top left of the screen opens a
 file browser panel. Use it to open the `PharmacyEntry/notebooks`
@@ -83,8 +83,8 @@ re-add any packages you need.
 
 As in the previous assignment, we begin by loading required packages.
 ```julia
-using Pkg 
-Pkg.activate("..") 
+using Pkg
+Pkg.activate("..")
 #Pkg.resolve()
 #Pkg.instantiate()
 #
@@ -93,12 +93,12 @@ Pkg.activate("..")
 # HTTP.get() (especially with https sites) later. If you find
 # HTTP.get() is hanging, then (1) run this cell with Pkg.instantiate()
 # once, (2) comment out Pkg.instantiate() (3) re-start the kernel and
-# re-run everything. 
+# re-run everything.
 #
 
 using Revise
 if (!("../src" ∈ LOAD_PATH))
-  push!(LOAD_PATH, "../src") 
+  push!(LOAD_PATH, "../src")
 end
 using PharmacyEntry
 ```
@@ -113,12 +113,12 @@ industrial organization of health related industries, and a list of
 pharamacies in Canada is available. Pharmacies in Canada are
 provincially regulated. A list with the website of each provincial
 regulator can be found
-[here](https://www.pharmacists.ca/pharmacy-in-canada/directory-of-pharmacy-organizations/provincial-regulatory-authorities1/). 
+[here](https://www.pharmacists.ca/pharmacy-in-canada/directory-of-pharmacy-organizations/provincial-regulatory-authorities1/).
 
 Each provincial regulator provides a list of pharmacies with
 addresses. These can be downloaded and saved as DataFrames. Doing so
 is slightly tedious though because each provincial regulator's website
-is different, so different code will be needed to parse each. 
+is different, so different code will be needed to parse each.
 
 Let's look at community pharmacies in BC,
 [http://www.bcpharmacists.org/list-community-pharmacies](http://www.bcpharmacists.org/list-community-pharmacies). This
@@ -135,13 +135,13 @@ CSS paths, and [regular
 expressions](https://docs.julialang.org/en/v1.0/manual/strings/#Regular-Expressions-1)
 to find patterns in text. Although our code will be in Julia, CSS
 selectors and regular expressions are common and useful tools for scraping
-webpages with any programming language. 
+webpages with any programming language.
 
 To scrape websites well, you need some understanding of html, CSS, and
 sometimes
 javascript. [https://www.w3schools.com/](https://www.w3schools.com/)
 is a pretty comprehensive reference. Here is a very short
-explanation. 
+explanation.
 CSS stands for "cascading style sheets." CSS is used to control the
 formatting of webpages. html documents consist of a bunch of tagged
 elements (headlines, links, tables, paragraphs, divs, etc) with optional
@@ -151,7 +151,7 @@ classes to which a given display style (font, color, etc) applies is
 called a CSS selector. Each part of a webpage that looks different
 will have a different CSS selector. If we want to scrape some
 particular information off a webpage, CSS selectors are usually a good
-way to pick out the pieces we need. 
+way to pick out the pieces we need.
 
 Returning to
 [http://www.bcpharmacists.org/list-community-pharmacies](http://www.bcpharmacists.org/list-community-pharmacies),
@@ -175,7 +175,7 @@ table that we want. Here's some Julia code to select these rows.
 using HTTP, Gumbo, Cascadia
 
 # download website
-r =  HTTP.get("http://www.bcpharmacists.org/list-community-pharmacies");  
+r =  HTTP.get("http://www.bcpharmacists.org/list-community-pharmacies");
 
 # parse website into tree using Gumbo.jl
 h = Gumbo.parsehtml(String(r.body));
@@ -199,7 +199,7 @@ row is a HTMLElement as described in the documentation for
 [Gumbo.jl](https://github.com/JuliaWeb/Gumbo.jl). Each row has
 children corresponding to the 5 columns of the table. Now, we can
 extract the text from the 5 columns of each row and store it in a
-DataFrame. 
+DataFrame.
 
 ```julia;eval=false
 using DataFrames
@@ -220,7 +220,7 @@ zip, and province. The dominant tool for matching, splitting, and
 substiting text based on patterns are [regular
 expressions](https://en.wikipedia.org/wiki/Regular_expression). Regular
 expressions are nearly as old as computers themselves, and they remain
-an important and powerfull tool for text processing. 
+an important and powerfull tool for text processing.
 
 ### Problem 1: familiarize yourself with regular expressions
 
@@ -231,14 +231,14 @@ nothing to turn in for this part, but there is a small task below.
 Here is some Julia code using regular expressions to split addresses
 into their parts. See [Julia's
 documentation](https://docs.julialang.org/en/v1.0/manual/strings/#Regular-Expressions-1)
-for more information. 
+for more information.
 
 ```julia; eval = false
 bc[:street] = (a->replace(a, r"(.+)\n.+, BC.+\n.+"s => s"\1")).(bc[:address])
 bc[:city]   = (a->replace(a, r".+\n(.+), BC.+\n.+"s => s"\1")).(bc[:address])
 bc[:zip]  =     (a->replace(a,r".+(\p{L}\d\p{L}).?(\d\p{L}\d).*"s => s"\1 \2")).(bc[:address])
 bc[:zipalt]    = (a->replace(a, r".+(\p{L}\d\p{L} \d\p{L}\d).*"s => s"\1")).(bc[:address])
-bc[:province] = "BC" 
+bc[:province] = "BC"
 describe(bc)
 ```
 
@@ -256,19 +256,19 @@ the function `loadBCdata` and `loadMBdata` are not exported from the
 the module you must preface with the module name,
 e.g. `bc = PharmacyEntry.loadBCdata(true)`. Either include your
 modified version of pharmacies.jl with what you turn in, or include
-the new function definitions in this notebook. 
+the new function definitions in this notebook.
 
 # Part II: downloading census data
 
-### Problem 3: market definition 
+### Problem 3: market definition
 
 We will download information on area demographic and economic
 conditions from Statistics Canada. An important choice in entry models
 is deciding what geographic area should define a market. See
-e.g. @br1991 or @ellickson2007. 
+e.g. @br1991 or @ellickson2007.
 Statistics
 Canada provides data at various [geographic
-levels](https://www12.statcan.gc.ca/census-recensement/2016/dp-pd/prof/about-apropos/about-apropos.cfm?Lang=E). 
+levels](https://www12.statcan.gc.ca/census-recensement/2016/dp-pd/prof/about-apropos/about-apropos.cfm?Lang=E).
 I somewhat arbitrarily chose to download data at the population centre
 level. Criticise or defend this choice. Optionally, modify `census.jl`
 to download census data at a different geographic level (the changes
@@ -288,7 +288,7 @@ use. Briefly review these and add or delete variables as you see
 fit. We want variables that are related to either the revenues or
 costs of pharmacies. It is probably better to err on the side of
 including too much instead of too little because you can always choose
-to ignore some variables later. 
+to ignore some variables later.
 
 # Part III: geocoding
 
@@ -309,7 +309,7 @@ from additional provinces), you will need to get a free API key by
 signing up with [https://www.geocod.io/](https://www.geocod.io/). Save
 the key in a text file named `geocodio.key` and place it in
 `PharmacyEntry/src/`. Let me know if you have any problems or the free
-key is insufficient. 
+key is insufficient.
 
 Geocoding is imperfect due to typos and
 errors in the address data, and possibly missing information in
@@ -322,7 +322,7 @@ the boundaries of the forward sortation area of its zip code are
 red. The others are green. For red pharmacies, the line goes from the
 pharmacy to the latitude and longitude at the center of its FSA. You
 can clearly see some pharmacies are misplaced, but other red ones
-might be okay. 
+might be okay.
 
 
 ```julia
@@ -331,16 +331,11 @@ pharm = loadpharmacydata()
 census= loadcensusdata()
 
 checklatlng!(pharm, :lat, :lng, :zip)
-@show mean(pharm[:zipmatch])
+@show mean(pharm[!,:zipmatch])
 ```
 
 ```julia; eval=false
 plotmap(census, pharm)
-# Configuration problem with jupyter on vse.syzygy.ca makes PlotlyJS
-# not display. Problem with Weave.jl also make PlotlyJS not display in
-# html output ... :(
-#
-# Bonus problem: find a way to plot a map that works on vse.syzygy.ca
 ```
 
 ### Problem 5: assign pharmacies to markets
@@ -350,7 +345,7 @@ centres). Implement your choice and create a variable giving the
 number of pharmacies in each population centre. The function
 `distance_m` in `geo.jl` might be useful. Create tables and/or graphs
 summarizing the distribution of number of pharmacies similar to Table
-2 and Figure 3 from @br1991. 
+2 and Figure 3 from @br1991.
 
 ### Problem 6: summary statistics and figures
 
@@ -371,31 +366,32 @@ subset = (x->x ∈ ["British Columbia",
                   "Newfoundland and Labrador",
                   "New Brunswick",
                   "New Brunswick/Quebec",
-                  "Prince Edward Island"]).(census[:PROV_TERR_NAME_NOM] )
+                  "Prince Edward Island"]).(census[!,:PROV_TERR_NAME_NOM] )
 df = census[subset,:]
 function closestPC(lat, lng; data=df)
-  d = distance_m.(lng, lat, data[:lng], data[:lat])
+  d = distance_m.(lng, lat, data[!,:lng], data[!,:lat])
   (dm, i) = findmin(d)
-  data[:GEO_CODE][i]
+  data[i,:GEO_CODE]
 end
-lat = pharm[:lat]
-lat[ismissing.(lat)] .= pharm[:ziplat][ismissing.(lat)]
-lng = pharm[:lng]
-lng[ismissing.(lng)] .= pharm[:ziplng][ismissing.(lng)]
-pharm[:pc_geo_code] =  closestPC.(lat,lng)
-df[:pharmacies] = (g->(sum(pharm[:pc_geo_code].==g))).(df[:GEO_CODE])
+lat = pharm[!,:lat]
+rep = ismissing.(lat) .| .!pharm[!,:zipmatch]
+lat[rep] .= pharm[rep,:ziplat]
+lng = pharm[!,:lng]
+rep=ismissing.(lng) .| .!pharm[!,:zipmatch]
+lng[rep] .= pharm[rep,:ziplng]
+pharm[!,:pc_geo_code] =  closestPC.(lat,lng)
+df[!,:pharmacies] = (g->(sum(pharm[!,:pc_geo_code].==g))).(df[!,:GEO_CODE])
 
 CSV.write("cleandata.csv",df);
 ```
 
 ## Population centres assigned more than 10 pharmacies.
 ```julia
-df[df[:pharmacies].>10,[:GEO_NAME, :pharmacies,  :PROV_TERR_NAME_NOM]]
+df[df[!,:pharmacies].>10,[:GEO_NAME, :pharmacies,  :PROV_TERR_NAME_NOM]]
 ```
 
 ## Population centres with 0 pharmacies
 
 ```julia
-df[df[:pharmacies].==0,[:GEO_NAME, :pharmacies, :lat, :lng, :PROV_TERR_NAME_NOM]]
+df[df[!,:pharmacies].==0,[:GEO_NAME, :pharmacies, :lat, :lng, :PROV_TERR_NAME_NOM]]
 ```
-

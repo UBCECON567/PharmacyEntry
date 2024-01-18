@@ -1,5 +1,5 @@
-# Census variables to keep 
-const vars = ["Population, 2016" 
+# Census variables to keep
+const vars = ["Population, 2016"
               "Population, 2011"
               "Population density per square kilometre"
               "Land area in square kilometres"
@@ -15,33 +15,33 @@ const vars = ["Population, 2016"
               "Prevalence of low income based on the Low-income measure, after tax (LIM-AT) (%)"
               "Total - Highest certificate, diploma or degree for the population aged 15 years and over in private households - 25% sample data"
               "No certificate, diploma or degree"
-              "Secondary (high) school diploma or equivalency certificate"  
-              "Postsecondary certificate, diploma or degree"      
-              "Apprenticeship or trades certificate or diploma"   
+              "Secondary (high) school diploma or equivalency certificate"
+              "Postsecondary certificate, diploma or degree"
+              "Apprenticeship or trades certificate or diploma"
               "Trades certificate or diploma other than Certificate of Apprenticeship or Certificate of Qualification"
-              "Certificate of Apprenticeship or Certificate of Qualification"                                       
-              "College, CEGEP or other non-university certificate or diploma"                                      
-              "University certificate or diploma below bachelor level"                                             
-              "University certificate, diploma or degree at bachelor level or above"                               
-              "Bachelor's degree"                                                                                  
-              "University certificate or diploma above bachelor level"                                             
-              "Degree in medicine, dentistry, veterinary medicine or optometry"                                    
-              "Master's degree"                                                                                    
-              "Earned doctorate"                                                                                   
+              "Certificate of Apprenticeship or Certificate of Qualification"
+              "College, CEGEP or other non-university certificate or diploma"
+              "University certificate or diploma below bachelor level"
+              "University certificate, diploma or degree at bachelor level or above"
+              "Bachelor's degree"
+              "University certificate or diploma above bachelor level"
+              "Degree in medicine, dentistry, veterinary medicine or optometry"
+              "Master's degree"
+              "Earned doctorate"
               "Total - Highest certificate, diploma or degree for the population aged 25 to 64 years in private households - 25% sample data"
               "Total - Major field of study - Classification of Instructional Programs (CIP) 2016 for the population aged 15 years and over in private households - 25% sample data"
               "Health and related fields"
-              "Participation rate"                      
-              "Employment rate"                                                       
+              "Participation rate"
+              "Employment rate"
               "Unemployment rate"
-              "All occupations"                             
+              "All occupations"
               "3 Health occupations"
-              "Total - Commuting duration for the employed labour force aged 15 years and over in private households with a usual place of work or no fixed workplace address - 25% sample data"   
-              "Less than 15 minutes"                                           
-              "15 to 29 minutes"                                               
-              "30 to 44 minutes"                                               
-              "45 to 59 minutes"                                               
-              "60 minutes and over"                                            
+              "Total - Commuting duration for the employed labour force aged 15 years and over in private households with a usual place of work or no fixed workplace address - 25% sample data"
+              "Less than 15 minutes"
+              "15 to 29 minutes"
+              "30 to 44 minutes"
+              "45 to 59 minutes"
+              "60 minutes and over"
               ];
 
 # dictionary for province abbreviations
@@ -60,8 +60,8 @@ const provinceabbr = Dict("Newfoundland and Labrador" => "NL",
                           "Nunavut" => "NU")
 
 """
-    loadcensusdata(;redownload=false, reparse=false) 
- 
+    loadcensusdata(;redownload=false, reparse=false)
+
 (Down)loads data on census populations centres from StatCan.
 
 Optional arguments:
@@ -91,20 +91,20 @@ function loadcensusdata(;redownload=false, reparse=false, regeocode=false)
       unzippath = normpath(joinpath(@__DIR__,"..","data"))
       # the next command will likely fail on windows, use some  other
       # unzip progra
-      run(`unzip -n $zipfile -d $unzippath`) 
+      run(`unzip -n $zipfile -d $unzippath`)
     end
-    
+
     if (reparse || !isfile(censuscsv))
       @info "Parsing raw census data"
       df = DataFrame(CSV.File(rawcensusfile))
-      names!(df, [:CENSUS_YEAR                                             
+      names!(df, [:CENSUS_YEAR
                   :GEO_CODE
-                  :GEO_LEVEL                                               
-                  :GEO_NAME                                                
-                  :GNR                                                     
-                  :GNR_LF                                                  
-                  :DATA_QUALITY_FLAG                                       
-                  :ALT_GEO_CODE                                            
+                  :GEO_LEVEL
+                  :GEO_NAME
+                  :GNR
+                  :GNR_LF
+                  :DATA_QUALITY_FLAG
+                  :ALT_GEO_CODE
                   :name
                   :id
                   :Notes
@@ -113,22 +113,22 @@ function loadcensusdata(;redownload=false, reparse=false, regeocode=false)
                   :Female])
       # Census data is in "long" format, we only keep some variables, and
       # then reshape to wide
-      
+
       newdf = df[df[:name] .∈ [vars],[:GEO_CODE, :GEO_NAME, :name, :Total]]
       wdf = unstack(newdf, :name, :Total)
       # For some baffling reason StatsCan doesn't include province identifiers in the Population Centres file
       # StatsCan own documents say,
-      # It is recommended that the two-digit province/territory (PR) 
+      # It is recommended that the two-digit province/territory (PR)
       # code precede the POPCTR code in order to identify each POPCTR
-      # uniquely within its 
+      # uniquely within its
       # corresponding province/territory.
       # https://www12.statcan.gc.ca/census-recensement/2016/ref/dict/geo049a-eng.cfm
-      # Yet they don't follow this recommendation. 
-      # At least they provide a semi-reasonable way to get this info      
+      # Yet they don't follow this recommendation.
+      # At least they provide a semi-reasonable way to get this info
       @info "Loading missing province codes from statcan"
       r = HTTP.get("https://www12.statcan.gc.ca/rest/census-recensement/CR2016Geo.xml?geos=POPCNTR")
       xdoc = parse_string(String(r.body));
-      xroot = root(xdoc);  
+      xroot = root(xdoc);
       colnames = [attribute(XMLElement(c),"NAME")
                   for c in child_nodes(xroot["COLUMNNAMES"][1])]
       geocodes = DataFrame(Array{String, 2}(undef, 0, length(colnames)), Symbol.(colnames))
@@ -143,9 +143,9 @@ function loadcensusdata(;redownload=false, reparse=false, regeocode=false)
     end
   else
     @info "reading cleaned census data from $censuscsv"
-    census=CSV.read(censuscsv)
+    census=CSV.read(censuscsv,DataFrame)
   end
-  if (regeocode || !(:lat ∈ names(census)))
+  if (regeocode || !("lat" ∈ names(census)))
     # statcan shapefile
     shpfile = normpath(joinpath(@__DIR__,"..","data","lpc_000b16a_e.shp"))
     if !isfile(shpfile)
@@ -159,10 +159,10 @@ function loadcensusdata(;redownload=false, reparse=false, regeocode=false)
       unzippath = normpath(joinpath(@__DIR__,"..","data"))
       # the next command will likely fail on windows, use some  other
       # unzip progra
-      run(`unzip -n $shpzip -d $unzippath`) 
+      run(`unzip -n $shpzip -d $unzippath`)
     end
     @info "Adding :lng and :lat to census dataframe"
-    pccentroids=ArchGDAL.registerdrivers() do
+    pccentroids=
       ArchGDAL.read(shpfile) do sf
         layer = ArchGDAL.getlayer(sf, 0)
         println(layer)
@@ -174,9 +174,9 @@ function loadcensusdata(;redownload=false, reparse=false, regeocode=false)
                                Array{Float64,1}(undef, 0)] ,
                               [:GEO_ID_CODE, :lng, :lat])
         for i in 0:(nlayer-1)
-          ArchGDAL.getfeature(layer, i) do feature            
+          ArchGDAL.getfeature(layer, i) do feature
             id = ArchGDAL.getfield(feature, 0)
-            geom = ArchGDAL.getgeomfield(feature,0)            
+            geom = ArchGDAL.getgeom(feature,0)
             cent = ArchGDAL.centroid(geom)
             ArchGDAL.importEPSG(3347) do source
               ArchGDAL.importEPSG(4326) do target
@@ -187,30 +187,27 @@ function loadcensusdata(;redownload=false, reparse=false, regeocode=false)
             end
             cent=ArchGDAL.toWKT(cent)
             # convert string to Array{Float64,1}
-            cent = parse.(Float64,split(replace(cent, r"POINT |\)|\(" => "")," "))            
+            cent = parse.(Float64,split(replace(cent, r"POINT |\)|\(" => "")," "))
             push!(centroids, [id, cent...])
           end
         end
         centroids
-      end      
-    end
-    pccentroids[:GEO_CODE] = parse.(Int64,
-                                       pccentroids[:GEO_ID_CODE])
+      end
+    pccentroids[!,:GEO_CODE] = parse.(Int64,
+                                       pccentroids[!,:GEO_ID_CODE])
     sort!(pccentroids, :GEO_CODE)
-    dupcodes=pccentroids[ pccentroids[:GEO_CODE] .==
-                          vcat(0, pccentroids[:GEO_CODE][1:(nrow(pccentroids)-1)]),:][:GEO_CODE] 
+    dupcodes=pccentroids[ pccentroids[!,:GEO_CODE] .==
+                          vcat(0, pccentroids[!,:GEO_CODE][1:(nrow(pccentroids)-1)]),:][!,:GEO_CODE]
     # pop centres on borders appear twice in shapefile, replace with
     # mean centroid
     for c in dupcodes
-      thisc = findall(pccentroids[:GEO_CODE].==c)
+      thisc = findall(pccentroids[!,:GEO_CODE].==c)
       pccentroids[thisc,:lat] .= mean(pccentroids[thisc,:lat])
       pccentroids[thisc,:lng] .= mean(pccentroids[thisc,:lng])
-      deleterows!(pccentroids, thisc[2:length(thisc)])
+      deleteat!(pccentroids, thisc[2:length(thisc)])
     end
-    census = join(census, pccentroids, on = [:GEO_CODE, :GEO_ID_CODE], kind=:left, indicator=:joinll)
+    census = leftjoin(census, pccentroids, on = [:GEO_CODE, :GEO_ID_CODE], indicator=:joinll)
     CSV.write(censuscsv, census)
   end
   census
 end # function
-
-
