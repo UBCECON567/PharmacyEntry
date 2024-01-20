@@ -40,6 +40,11 @@ function loadpharmacydata(;redownload=false, regeocode=false)
     geocode!(df, :address)
     CSV.write(csvfile, df)
   end
+
+  if !("zipmatch" ∈ names(df))
+      checklatlng!(df, :lat, :lng, :zip)
+      CSV.write(csvfile, df)
+  end
   df
 end
 
