@@ -45,6 +45,10 @@ function loadpharmacydata(;redownload=false, regeocode=false)
       checklatlng!(df, :lat, :lng, :zip)
       CSV.write(csvfile, df)
   end
+  if ("address_original" ∈ names(df))
+      df = df[!,setdiff(names(df),"address_original")]
+      CSV.write(csvfile, df)
+  end
   df
 end
 
