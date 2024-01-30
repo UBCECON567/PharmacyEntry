@@ -97,7 +97,7 @@ Wait a few minutes while Pluto and its dependencies install and are precompiled.
 
 > println("saving notebook in $(pwd()) as $filename")
 
-> !file.exists(filename) && Downdloads.download("https://raw.githubusercontent.com/UBCECON567/PharmacyEntry/master/pluto/pharmacyentry_pluto.jl", filename) 
+> !isfile(filename) && Downloads.download("https://raw.githubusercontent.com/UBCECON567/PharmacyEntry/master/pluto/pharmacyentry_pluto.jl", filename) 
 ```
 
 5. Open this notebook in Pluto
@@ -346,7 +346,7 @@ md"""
 Now we want to estimate α from this simulated data. This is a good way of checking that our estimation code is correct. We will estimate α by maximum likelihood. The log likelihood function is
 
 ```math
-\ell(\alpha;n) = \sum_{t=1}^N \log\left( \Phi( \sum_{i=1}^{n_t+1} \alpha_i) - \Phi(\sum_{i=1}^{n_t} \alpha_i) \right)
+\ell(\alpha;n) = \sum_{t=1}^N \log\left( \Phi( \sum_{i=1}^{n_t} \alpha_i) - \Phi(\sum_{i=1}^{n_t+1} \alpha_i) \right)
 ```
 
 where $\Phi()$ is the cdf of $\epsilon$ and we let $\sum_{i=1}^0 \alpha_i = -\infty$ and $\sum_{i=1}^{length(\alpha)+1} = \infty$. 
@@ -361,7 +361,7 @@ where $\Phi()$ is the cdf of $\epsilon$ and we let $\sum_{i=1}^0 \alpha_i = -\in
 
 This is a doc string. It will be displayed in the "Live Docs" panel in the lower right corner of Pluto, or when you type ?simplelike in the Julia repl. You should replace this text with a useful docstring.
 """
-function simplelike(α, n; dist=Normal())	
+function simplelike(α, n; dist=Normal())
     error("You must write this function")	
 end
 
