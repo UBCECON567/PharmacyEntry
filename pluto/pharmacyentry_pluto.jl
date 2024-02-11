@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.36
+# v0.19.38
 
 #> [frontmatter]
 #> title = "Phamacy Entry: Part I"
@@ -12,6 +12,19 @@
 
 using Markdown
 using InteractiveUtils
+
+# ╔═╡ 0c0a486a-ca88-4931-97ae-a741c22e4d76
+begin
+	using Test
+	@testset "numberfirms" begin
+		@test numberfirms([0.0], -1.0)==0
+		@test numberfirms([0.0], 1.0)==1
+		@test numberfirms([1.0, -1.0], 1.0)==2
+		@test numberfirms([1.0, -1.0], -0.5)==1
+		@test numberfirms([1.0, -1.0], -1.5)==0			
+	end
+end
+	
 
 # ╔═╡ 1da7be06-5cdb-47be-80ba-0bbf2a307d4c
 using Distributions, StatsPlots
@@ -304,19 +317,6 @@ Given a vector, `α`, and a scalar `ϵ`, return an integer n ∈ {0, 1, ..., len
 function numberfirms(α, ϵ)
 	#error("You must write the body of this function")
 end
-
-# ╔═╡ 0c0a486a-ca88-4931-97ae-a741c22e4d76
-begin
-	using Test
-	@testset "numberfirms" begin
-		@test numberfirms([0.0], -1.0)==0
-		@test numberfirms([0.0], 1.0)==1
-		@test numberfirms([1.0, -1.0], 1.0)==2
-		@test numberfirms([1.0, -1.0], -0.5)==1
-		@test numberfirms([1.0, -1.0], -1.5)==0			
-	end
-end
-	
 
 # ╔═╡ 48ffdce4-f7df-4716-b208-71eaf1658e2e
 md"""
