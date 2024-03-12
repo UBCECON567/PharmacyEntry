@@ -16,6 +16,9 @@ using Proj
 # ╔═╡ 8f0936ca-7595-4761-aa76-c61691fd2083
 using ProgressLogging
 
+# ╔═╡ 8d1de0e1-c587-4edb-98b7-8b6df440fe1d
+using Distances
+
 # ╔═╡ ce0751b6-9595-4cfc-9187-68449dfb2c63
 using ComponentArrays
 
@@ -310,6 +313,9 @@ Here are the population centres with more than 20 pharmacies.
 # ╔═╡ bd04e9a8-a5be-4880-92b5-b3db5d55c727
 sort(filter(x->x.nfirms>=20, marketdf)[!, [:GEO_NAME, :PROV_TERR_NAME_NOM, Symbol("Population, 2016"), :nfirms]], :nfirms, rev=true)
 
+# ╔═╡ 3a0c815b-b97a-4a45-b843-1ca10a4e6f25
+sort(marketdf, Symbol("Population, 2016"), rev=true)[!, [:GEO_NAME, :nfirms, Symbol("Population, 2016")]]
+
 # ╔═╡ 30eb77d2-adc6-43e3-b015-dce8df01f6a9
 md"""
 
@@ -324,13 +330,39 @@ That looks pretty reasonable.
 
 # ╔═╡ a222d660-f8c1-432a-babd-2dc479234c10
 md"""
-*Your answer here.*
+
+In large markets, like Vancouver, not all pharmacies compete with one another.  
+
+Also, in markets that are too close together, consumers in one market might visit pharmacies in another. 
+
+Many people noted the large number of markets with 0 pharmacies. That is because the redownloaded census data above included all provinces, but we did not get pharmacy locations for all provinces. We should drop the provinces for which we did not scrape pharmacies. 
+
 """
+
+# ╔═╡ c7990171-41dc-43aa-84fd-6767b8c9ecdb
+# distances between population centres in km
+distances = [Distances.haversine((x.lng, x.lat), (y.lng, y.lat), 6372.8) 
+	for (x,y) in Iterators.product(eachrow(marketdf), eachrow(marketdf))]
+
+
+# ╔═╡ 6177a6bf-091d-403d-a414-596838af298c
+marketdf[!,:mindist]=vec(minimum(distances + I*Inf, dims=2))
 
 # ╔═╡ 75d06b80-d99a-452f-9de7-eb816412a00e
 estdf = let
-	filter(x->x.nfirms < 2 && x[Symbol("Population, 2016")] < 1e6, marketdf)
-end;
+	tmp = combine(groupby(marketdf, :PROV_TERR_NAME_NOM), :nfirms=>sum)
+	provs = unique(tmp.PROV_TERR_NAME_NOM[tmp.nfirms_sum.>10])
+	filter(x->(x[Symbol("Population, 2016")] < 1e5 && x.mindist>10 && x.PROV_TERR_NAME_NOM ∈ provs), marketdf)
+end
+
+# ╔═╡ 179c1a07-f0b3-4b83-b3d2-5746bbd7bd4e
+size(estdf)
+
+# ╔═╡ 29615fc6-242c-4bb0-8353-cef2f3b714c9
+sort(estdf, :nfirms, rev=true)[!,[:GEO_NAME, :nfirms, Symbol("Population, 2016"), :mindist]]
+
+# ╔═╡ 3652325a-faf2-48fb-8c98-5cbfd32848b1
+hist(estdf.nfirms)
 
 # ╔═╡ e4f8347b-b022-4328-ba40-a8138bdc2ad0
 (maximum(estdf.nfirms) != 1) || error("Modify the filtering for estdf in the cell above")
@@ -507,7 +539,7 @@ function logfinite(cut::Number)
 end
 
 
-# ╔═╡ 60732dbb-3a4c-4675-a783-dd3c5fc69210
+# ╔═╡ 3a8adc6d-8fcc-4f17-81be-e45e058b1412
 """
          brentrymodel(data::AbstractDataFrame,
                       n::Symbol,
@@ -528,7 +560,7 @@ Create loglikelihood for Bresnehan & Reiss style entry model
 
 The same variables may be included in both `x` and `w`.
 """
-function brentrymodel(data::AbstractDataFrame,
+function brentrymodel(data, #::AbstractDataFrame,
                       n::Symbol,
                       s::Symbol,
                       x::Array{Symbol,1},
@@ -541,22 +573,36 @@ function brentrymodel(data::AbstractDataFrame,
     X = disallowmissing(Matrix(data[!,x][inc,:]))
     W = disallowmissing(Matrix(data[!,w][inc,:]))
     N = disallowmissing(data[!,n][inc])
-    
+
     function packparam(α,β,γ,δ)
-	    θ = ComponentArray(α=α,β=β,γ=γ,δ=δ)
+	θ = ComponentArray(α=α,β=β,γ=γ,δ=δ)
     end
-    function unpackparam(θ::ComponentArray)
-	    @views (θ.α,θ.β,θ.γ,θ.δ)
-	end
+    function unpackparam(θ) #::ComponentArray)
+	(θ.α,θ.β,θ.γ,θ.δ)
+    end
+
+    logf = logfinite(1e-6)
 
     function loglike(θ)
         (α,β,γ,δ) = unpackparam(θ)
-        error("You must write the body of this function")
-		# consider using logfinite(1e-6)(x) in place of log(x)
+        csα = cumsum(α)
+        csγ = cumsum(γ)
+        π0 = S.*(X*β) - W*δ
+        function lli(π0, n, s)
+            if n == 0
+                return logf(Fϵ(-(π0 + s*α[1] - γ[1])))
+            elseif n==length(α)
+                return logf(1 - Fϵ(-(π0 + s*csα[n] - csγ[n])))
+            else
+                return logf(Fϵ(-(π0 + s*csα[n+1] - csγ[n+1])) - Fϵ(-(π0 + s*csα[n] - csγ[n])))
+            end
+        end
+        sum(lli(p0, ni, si) for (p0, ni, si) in zip(π0, N, S)) / length(N)
     end
-  
+
     return(loglike=loglike, unpack=unpackparam, pack=packparam)
 end
+
 
 # ╔═╡ 445fae4b-b84a-4de2-9ebd-aeac22340c2d
 md"""
@@ -566,11 +612,11 @@ Here are some very simple tests that your function returns a number and is compa
 
 # ╔═╡ 3c1138db-5cb3-4bc4-bec6-0a06ee720343
 @testset begin
-	estdf[!,:pop10k] = estdf[!,Symbol("Population, 2016")]./10000
+	estdf[!,:pop10k] = estdf[!,Symbol("Population, 2016")]./10_000
 	tmp = filter(x->x.nfirms < 3, estdf)
 	loglike, unpack, pack = brentrymodel(tmp, :nfirms, :pop10k, [Symbol("Employment rate")], [Symbol("Employment rate")])
 	α = [2.0, -1.5, -1.0]
-	γ = [0.0, 0.0, 2.0]
+	γ = [0.0, 1.0, 2.0]
 	β = ones(1)
 	δ = ones(1)	
 	@test unpack(pack(α, β, γ, δ)) == (α, β, γ, δ)
@@ -618,24 +664,6 @@ simdf=let
 	df
 end;
 
-# ╔═╡ b860236e-91c3-41ae-81a0-be4c39130b65
-loglikes, unpacks, packs, θ̂s = let		
-	loglike, unpack, pack = try 
-		# run my solulution code from another file
-		include("solution2.jl") 
-		brentrymodel_sol(simdf, :nsim, svar_sim, xvars_sim, wvars_sim)		
-	catch
-		# if solution2.jl doesn't exist, use your brentrymodel function defined above
-		brentrymodel(simdf, :nsim, svar_sim, xvars_sim, wvars_sim)
-	end
-
-	θ0 = pack(αs,βs,γs,δs)
-	loglike(θ0)
-	@show res = optimize(x->-loglike(x), θ0, LBFGS(), autodiff=:forward)
-	@test res.g_converged
-	loglike, unpack, pack, res.minimizer
-end
-
 # ╔═╡ 1bc014b5-f00d-4e24-b27a-104219527410
 hist(simdf.nsim)
 
@@ -651,6 +679,21 @@ The cell below will maximize the likelihood. A subsequent creates a table showin
     Check that your likelihood results in parameters near the true values. If you suspect a problem with your code, briefly write what seems wrong.
 
 """
+
+# ╔═╡ b860236e-91c3-41ae-81a0-be4c39130b65
+loglikes, unpacks, packs, θ̂s = let		
+	loglike, unpack, pack = 
+		brentrymodel(simdf, :nsim, svar_sim, xvars_sim, wvars_sim)
+	
+	θ0 = pack(αs,βs,γs,δs)
+	loglike(θ0)
+	@show res = optimize(x->-loglike(x), θ0, LBFGS(), autodiff=:forward)
+	@test res.g_converged
+	loglike, unpack, pack, res.minimizer
+end
+
+# ╔═╡ d05308bb-f2d3-430f-ac3b-7bd2c121ef22
+
 
 # ╔═╡ e65bacaa-da89-453c-bea0-e30606dde0d6
 """
@@ -672,7 +715,12 @@ Computes the asymptotic variance of θ̂, and creates a table of estimates and s
 function setable(θ̂, loglike, nmarkets, θtruth=nothing)
 	# calculate standard errors
     H = ForwardDiff.hessian(loglike,θ̂)
-    Varθ = -inv(H)./nmarkets
+    Varθ =  try 
+		-inv(H)./nmarkets
+	catch 
+		@warn "Hessian is singular, se are incorrect"
+		-inv(H - I)./nmarkets
+	end
     # Make a nice(ish) table
 	if (isnothing(θtruth))
 		header= ["Estimate", "(SE)"]
@@ -706,6 +754,12 @@ let
 	tbl
 end
 
+# ╔═╡ fc63d341-4692-480f-bab7-5228e53ba8b5
+md"""
+The estimates on simulated data look fine. 
+
+"""
+
 # ╔═╡ a9acb09e-8cc0-463a-afaa-637799dd70d3
 md"""
 # Estimation 
@@ -722,18 +776,164 @@ md"""
 
 """
 
+# ╔═╡ 1afaeaca-e8d8-4e30-a9de-5a109f6384a7
+names(estdf)
+
 # ╔═╡ e1bb92d0-24f5-4b08-a095-2e9a11ba3807
 md"""
 
-*Describe your choice of variables*
+I use population as market size. As variable profit shifters, I include income and the portion of the population of working age. As fixed cost shifters, I include only  area. There are many other reasonable choices. Given the samewhat limited sample size, a somewhat parsimonious specification makes sense.
+
 
 """
 
 # ╔═╡ c1b1dfe5-6da7-4256-bfa0-715a6ebe68e7
 # Your estimation code, it will be similar to the code provided after Problem 3
+edf=let 
+	df = deepcopy(estdf)
+	# Important to scale variables to avoid numerical problems in both
+    # simulation & estimation
+	df[!,:pop10k] = df[!,Symbol("Population, 2016")]./10000
+	df[!,:logpop10k] = log.(df[!,:pop10k])
+	df[!,:income10k] = df[!,Symbol("Average total income in 2015 among recipients (\$)")]./10000
+	df[!,:density1k] = df[!,Symbol("Population density per square kilometre")]./1000
+	df[!,:logdensity] = log.(df[!,:density1k])
+	df[!,:logarea] = log.(df[!,Symbol("Land area in square kilometres")])
+	df[!,:mediumage] = df[!,Symbol("15 to 64 years")]./100
+	df
+end;
+
+# ╔═╡ b11e27d2-a294-4e9f-bcbd-eb29fe598f06
+begin
+	svar = :pop10k
+	xvars = [:income10k, :mediumage]
+	wvars = [:logarea]
+end;
+
+# ╔═╡ 31669dab-b7a2-45e0-a373-89239b4ddad1
+loglike, unpack, pack, θ̂ = let		
+	loglike, unpack, pack = try 
+		# run my solulution code from another file
+		include("solution2.jl") 
+		brentrymodel_sol(edf, :nfirms, svar, xvars, wvars)		
+	catch
+		# if solution2.jl doesn't exist, use your brentrymodel function defined above
+		brentrymodel(simdf, :nfirms, svar, xvars, wvars)
+	end
+	α0 = [1, -ones(maximum(edf.nfirms)-1)./10...]
+	γ0 = ones(maximum(edf.nfirms))/10
+	β0 = ones(length(xvars))
+	δ0 = ones(length(wvars))
+	θ0 = pack(α0,β0,γ0,δ0)
+	loglike(θ0)
+	θl = pack(-Inf*ones(length(α0)), -Inf*β0, [-Inf, zeros(length(γ0)-1)...], -Inf*δ0)
+	θh = pack([Inf, zeros(length(α0)-1)...], Inf*β0, Inf*ones(length(γ0)), Inf*δ0)
+	@show res = optimize(x->-loglike(x), θl, θh, θ0, Fminbox(BFGS()), autodiff=:forward) #, 
+	   #Optim.Options(iterations=10_000))
+	#@test res.g_converged
+	loglike, unpack, pack, res.minimizer
+end
+
+# ╔═╡ 1edf49d4-e61b-43ab-b9f8-e7f2b49773aa
+loglike2, unpack2, pack2, θ̂2 = let		
+	loglike, unpack, pack = try 
+		# run my solulution code from another file
+		include("solution2.jl") 
+		brentrymodel_sol(edf, :nfirms, svar, xvars, wvars)		
+	catch
+		# if solution2.jl doesn't exist, use your brentrymodel function defined above
+		brentrymodel(simdf, :nfirms, svar, xvars, wvars)
+	end
+	
+	linN = 10
+	maxN = maximum(edf.nfirms)
+	α0 = [1, -ones(linN-1)./10...]
+	γ0 = ones(linN)/10
+	pack2(α, β, γ, δ) = pack(α[1:linN], β, γ[1:linN], δ)
+	function unpack2(θ)
+		β = copy(θ.β)
+		δ = copy(θ.δ)
+		α1= copy(θ.α)
+		γ1 = copy(θ.γ)
+		λ = log(-α1[linN])-log(-α1[linN-1])
+		a = α1[linN]/exp(λ*linN)
+		#@show a == α1[linN-1]/exp(λ*(linN-1))
+		α = vcat(α1, a*exp.(λ*(linN+1:maxN)))
+
+		λ = log(γ1[linN])-log(γ1[linN-1])
+		a = γ1[linN]/exp(λ*linN)
+		γ = vcat(γ1, a*exp.(λ*(linN+1:maxN)))
+		α, β, γ, δ
+	end
+	β0 = ones(length(xvars))
+	δ0 = ones(length(wvars))
+	θ0 = pack2(α0,β0,γ0,δ0)
+	
+	@show loglike(pack(unpack2(θ0)...))
+
+	θl = pack(-Inf*ones(length(α0)), -Inf*β0, [-Inf, zeros(length(γ0)-1)...], -Inf*δ0)
+	θh = pack([Inf, zeros(length(α0)-1)...], Inf*β0, Inf*ones(length(γ0)), Inf*δ0)
+	@show res = optimize(x->-loglike(pack(unpack2(x)...)), θl, θh, θ0, Fminbox(BFGS()), autodiff=:forward) #, 
+	 #  Optim.Options(iterations=10_000))
+	#@test res.g_converged
+	loglike, unpack2, pack2, res.minimizer
+end
+
+# ╔═╡ 3c344dce-4648-41f4-b341-eba7705be7b7
+md"""
+For estimation, I impose constraints that variable profits weakly decrease with n and fixed costs weakly increase with n. This means constraining alpha to be negative and gamma to be positive. I do this using the Fminbox optimizer. 
+"""
+
+# ╔═╡ a5c603f8-9e16-4f77-bea2-f5c05939c3eb
+θ̂
+
+# ╔═╡ 94513167-c3c4-45f5-8ff7-8ba77277a61f
+sort(unique(edf.nfirms))
 
 # ╔═╡ 4c7356d8-b5a9-40f8-a13c-405fc256d9f4
 # Table of parameters and standard errors
+(tab, V) = setable(θ̂ , loglike, nrow(edf))
+
+# ╔═╡ e353e3c3-b9e0-4998-82ed-73ab000433b6
+md"""
+As shown many of the α and γ are zero. This is related to the fact that we observe no markets with some numbers of firms (e.g. there are no markets with 30-34 firms). If we never observe a certain number of firms, then the likelihood will be maximized by making that number of firms never occur.  
+
+This leads to problems in computing standard errors, showing up as a singular Hessian. 
+
+To avoid this problem, we can use a more restrictive parameterization. Specifically, instead of making α[n] a separate parameter for each n, we will make α[n] a parametric function of n for larger n. We have seen this done in various entry papers. 
+"""
+
+# ╔═╡ f323c5e7-8bad-4854-91e2-154ec0d1cb95
+(tab2, V2) = setable(θ̂2, x->loglike2(pack(unpack2(x)...)), nrow(edf))
+
+# ╔═╡ c275ddec-d58c-4f29-886a-f79681d73523
+md"""
+The model is parameterized so that for $n>10$, the ratio of $\alpha[n]/\alpha[n-1]$ is the same as $\alpha[9]/\alpha[10]$. $\gamma$ for $n>10$ are similarly defined. The figure below shows the full set of $\alpha$ and $\gamma$, along with pointwise 95% confidence bands.
+"""
+
+# ╔═╡ 23c7306c-3f59-4a78-8dac-0dceebf451d5
+let
+	α, β, γ, δ = unpack2(θ̂2)
+	Ja = ForwardDiff.jacobian(θ->unpack2(θ)[1], θ̂2)
+	Jg = ForwardDiff.jacobian(θ->unpack2(θ)[3], θ̂2)
+
+	Va = Ja*V2*Ja'
+	Vg = Jg*V2*Jg'
+
+	
+	f = Figure()
+	n = 1:length(α)
+	lines(f[1,1],1:length(α), α, label="α", 
+	   axis = (; title = "α", xlabel = "n", ylabel = "α̂"))
+	poly!(f[1,1],CairoMakie.Point2.(vcat(n, reverse(n)), 
+		vcat(α .- sqrt.(diag(Va))*1.96, reverse(α .+ sqrt.(diag(Va))*1.96))), alpha=0.3)
+	lines(f[2,1],1:length(γ), γ, label="γ", 
+		axis = (; title = "γ", xlabel = "n", ylabel = "γ̂"))
+	poly!(f[2,1],CairoMakie.Point2.(vcat(n, reverse(n)), 
+		vcat(γ .- sqrt.(diag(Vg))*1.96, reverse(γ .+ sqrt.(diag(Vg))*1.96))), alpha=0.3)
+	f
+end
+	
 
 # ╔═╡ 5603031d-61e3-4c25-b38f-a3cc480106b6
 md"""
@@ -751,7 +951,53 @@ md"""
 
 
 # ╔═╡ ad7a0a32-36f3-42e1-9ff6-18d761d6b348
-# your code here
+nsim = let 
+	simsper =   100
+	paramdraws= 200
+	nsim = Array{typeof(edf.nfirms),2}(undef, paramdraws, simsper)	
+	for i in 1:paramdraws
+		if (i>1)
+			θ = deepcopy(θ̂2)
+			θ .= rand(MvNormal(θ̂2, Hermitian(V2)))
+			θ.α[2:end] .= min.(θ.α[2:end], -eps())
+			θ.γ[2:end] .= max.(θ.γ[2:end], eps())
+		else
+			θ = θ̂2
+		end
+		α, β, γ, δ = unpack2(θ)
+		for j in 1:simsper
+			nsim[i,j] = brentrysim(edf, svar, xvars, wvars, α, β, γ, δ)
+		end
+	end
+	nsim
+end;
+
+# ╔═╡ 172ea51b-2831-412e-a044-994af0bafb16
+let
+	fig = Figure()
+	hist(fig[1,1],edf.nfirms, bins=maximum(edf.nfirms), normalization=:probability,
+	axis = (; title = "Observed and Fitted Number of Firms", xlabel = "Number of Firms", ylabel = "P(market has n firms)"))
+	pn = [[mean(mean(N.==n) for N in nsim[j,:]) for n in 0:maximum(edf.nfirms)] 
+		for j in 1:size(nsim,1)]
+	P = pn[1]
+	ci = [quantile([pn[s][n] for s in 2:length(pn)], [0.05, 0.95]) 
+			for n in 1:length(P)]
+	lb = [p - c[1] for (p,c) in zip(P,ci)]
+	ub = [c[2] - p for (p,c) in zip(P,ci)]
+	n = (1:length(P)) .- 0.5
+	scatter!(fig[1,1],n, P, color=:red, makersize=10)
+	errorbars!(fig[1,1],n, P, lb, ub, color=:red, whiskerwidth=6)
+	fig
+	#lines!(fig[1,1],1:10,1:10)
+	#fig
+end
+
+# ╔═╡ bb835ca1-bc55-4322-8449-0351dd9137c0
+md"""
+The figure above shows the observed and fitted distribution of number of pharmacies among markets. The error bars show 90% confidence intervals around the fitted distribution. 
+
+The model is underpredicting 0 and overpredicting 1 and 2 pharmacies. This might be worth looking into. There could be a problem with the estimation and/or model.
+"""
 
 # ╔═╡ ca66910d-1c61-47ab-bbaa-da80dcefb462
 md"""
@@ -766,30 +1012,45 @@ md"""
 """
 
 # ╔═╡ 3bb77367-0947-4d0b-89e9-e1c75a73388d
-# your code here 
+function sizethresholds(α, β, γ, δ, X, W; ϵ = 0)
+	S = [((W*δ)[1] + sum(γ[1:n]) - ϵ) / ((X*β)[1] + sum(α[1:n])) for n in 1:length(α)]
+end
+
+# ╔═╡ 603564a1-b813-47a9-931a-98055a21b373
+let 
+	X = mean(Matrix(edf[!, xvars]), dims=1)
+	W = mean(Matrix(edf[!, wvars]), dims=1)
+	S = sizethresholds(unpack2(θ̂2)..., X, W, ϵ=0)*10_000
+	n = 1:length(S)
+	J = ForwardDiff.jacobian(θ->sizethresholds(unpack2(θ)...,X,W)./n*10_000, θ̂2)
+	Vs = J*V2*J'
+	f = Figure()
+	scatter(f[1,1],n,S./n; 
+		axis=(;title="Population per firm", xlabel="n", ylabel="Sₙ"))
+	errorbars!(f[1,1],n,S./n,sqrt.(diag(Vs))*1.96, sqrt.(diag(Vs))*1.96)
+	@show (S./n)[end]
+
+	function rs(θ) 
+		S=sizethresholds(unpack2(θ)..., X, W, ϵ=0)*10_000 ./n
+		S./S[end]
+	end
+	rS = rs(θ̂2)
+	Jr = ForwardDiff.jacobian(rs, θ̂2)
+	Vr = Jr*V2*Jr'
+
+	scatter(f[2,1],n,rS,
+		axis=(;title="Relative size threshold", xlabel="n", ylabel="Sₙ/S₃₅"))
+	errorbars!(f[2,1],n,rS,sqrt.(diag(Vr))*1.96, sqrt.(diag(Vr))*1.96)
+	f	
+end
 
 # ╔═╡ 710f0258-5eb9-44d5-9b47-7a816615a23a
 md"""
+The figure above shows the estimated minimum population per pharmacy needed for $n$ pharmacies to enter when $X$ and $W$ are at their mean and $\epsilon=0$. 
+The figure includes 95% confidence bands. 
 
-*Your interpretation of the results*
-
+The estimates show that the population per firm increases sharply with the number of firms. This suggests that there could be substantial market power. Monopoly firms need far fewer people to be viable than each firm in a market with many firms need. Even markets with 7 pharmacies appear to require fewer people per firm than markets with more pharmacies. This suggests that even with 7 pharmacies, the pharmacies have market power and earn more profits per person than in markets with more pharmacies.
 """
-
-# ╔═╡ 765607c2-96b3-46bf-95c4-1e1b3c49910d
-let
-	# delta method demo
-	estimate = [1.0, 1.0]
-	variance_estimate = [1.0 0.0;
-	                     0.0 2.0]
-	function func_of_estimate(θ)
-  		# you'd replace this with your function to calculate the size thresholds
-  		[sum((θ) ./ (θ.*θ)), θ[1]*θ[2], θ[1] - θ[2]]
-	end
-	# the delta method get the variance for func_of_estimate(θ)
-	∇sn = ForwardDiff.jacobian(func_of_estimate, estimate)
-	variance_sn = ∇sn*variance_estimate*∇sn'
-	se_sn = sqrt.(diag(variance_sn))
-end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -798,6 +1059,7 @@ CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 ComponentArrays = "b0b7db55-cfe3-40fc-9ded-d10e2dbeff66"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+Distances = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 GeoIO = "f5a160d5-e41d-4189-8b61-d57781c419e3"
@@ -817,6 +1079,7 @@ CSV = "~0.10.12"
 CairoMakie = "~0.11.8"
 ComponentArrays = "~0.15.8"
 DataFrames = "~1.6.1"
+Distances = "~0.10.11"
 ForwardDiff = "~0.10.36"
 GeoIO = "~1.12.7"
 GeoStats = "~0.51.0"
@@ -835,7 +1098,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.10.2"
 manifest_format = "2.0"
-project_hash = "46563f693fc479b68de63718e262c8be09b37dc7"
+project_hash = "f77b714237a3b8fed14f1a084abf1cfab5459b6d"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -3571,10 +3834,17 @@ version = "3.5.0+0"
 # ╠═721c5720-fa31-4ded-9581-547fa2b37b3b
 # ╟─4f71c1d1-8719-49f1-8325-c942b7fcf56f
 # ╠═bd04e9a8-a5be-4880-92b5-b3db5d55c727
+# ╠═3a0c815b-b97a-4a45-b843-1ca10a4e6f25
 # ╟─30eb77d2-adc6-43e3-b015-dce8df01f6a9
-# ╠═a222d660-f8c1-432a-babd-2dc479234c10
+# ╟─a222d660-f8c1-432a-babd-2dc479234c10
+# ╠═8d1de0e1-c587-4edb-98b7-8b6df440fe1d
+# ╠═c7990171-41dc-43aa-84fd-6767b8c9ecdb
+# ╠═6177a6bf-091d-403d-a414-596838af298c
 # ╠═75d06b80-d99a-452f-9de7-eb816412a00e
-# ╟─e4f8347b-b022-4328-ba40-a8138bdc2ad0
+# ╠═179c1a07-f0b3-4b83-b3d2-5746bbd7bd4e
+# ╠═29615fc6-242c-4bb0-8353-cef2f3b714c9
+# ╠═3652325a-faf2-48fb-8c98-5cbfd32848b1
+# ╠═e4f8347b-b022-4328-ba40-a8138bdc2ad0
 # ╟─cbbf20ca-fb2c-480e-a56b-527a4fa3daeb
 # ╟─2bc94ef3-70bd-4b0e-b2d8-962fd79b7650
 # ╠═95078d1c-c4ec-4d6b-99ac-20a0c96bf242
@@ -3582,7 +3852,7 @@ version = "3.5.0+0"
 # ╟─94688148-4207-4843-bd55-1a81f98061cf
 # ╠═ce0751b6-9595-4cfc-9187-68449dfb2c63
 # ╟─ca15fc94-be19-4a9c-82fc-8fa98e61f06d
-# ╠═60732dbb-3a4c-4675-a783-dd3c5fc69210
+# ╠═3a8adc6d-8fcc-4f17-81be-e45e058b1412
 # ╠═8fc7a3de-c59f-46ad-a3de-37ba45e2e137
 # ╟─445fae4b-b84a-4de2-9ebd-aeac22340c2d
 # ╠═3c1138db-5cb3-4bc4-bec6-0a06ee720343
@@ -3593,19 +3863,34 @@ version = "3.5.0+0"
 # ╠═7c87c2fa-1ffe-49eb-802b-160e004c10cd
 # ╟─711971fb-0315-4095-b3c8-13d402d2fdec
 # ╠═b860236e-91c3-41ae-81a0-be4c39130b65
+# ╠═d05308bb-f2d3-430f-ac3b-7bd2c121ef22
 # ╠═751dab8a-f6a7-44fc-8fc0-a55ffd033f11
 # ╠═e65bacaa-da89-453c-bea0-e30606dde0d6
 # ╠═a7202a46-f7f4-4b7e-94a0-73354a6b28f1
+# ╟─fc63d341-4692-480f-bab7-5228e53ba8b5
 # ╟─a9acb09e-8cc0-463a-afaa-637799dd70d3
-# ╠═e1bb92d0-24f5-4b08-a095-2e9a11ba3807
+# ╠═1afaeaca-e8d8-4e30-a9de-5a109f6384a7
+# ╟─e1bb92d0-24f5-4b08-a095-2e9a11ba3807
 # ╠═c1b1dfe5-6da7-4256-bfa0-715a6ebe68e7
+# ╠═b11e27d2-a294-4e9f-bcbd-eb29fe598f06
+# ╟─3c344dce-4648-41f4-b341-eba7705be7b7
+# ╠═31669dab-b7a2-45e0-a373-89239b4ddad1
+# ╠═a5c603f8-9e16-4f77-bea2-f5c05939c3eb
+# ╠═94513167-c3c4-45f5-8ff7-8ba77277a61f
 # ╠═4c7356d8-b5a9-40f8-a13c-405fc256d9f4
+# ╟─e353e3c3-b9e0-4998-82ed-73ab000433b6
+# ╠═1edf49d4-e61b-43ab-b9f8-e7f2b49773aa
+# ╠═f323c5e7-8bad-4854-91e2-154ec0d1cb95
+# ╟─c275ddec-d58c-4f29-886a-f79681d73523
+# ╠═23c7306c-3f59-4a78-8dac-0dceebf451d5
 # ╟─5603031d-61e3-4c25-b38f-a3cc480106b6
 # ╠═ad7a0a32-36f3-42e1-9ff6-18d761d6b348
+# ╠═172ea51b-2831-412e-a044-994af0bafb16
+# ╟─bb835ca1-bc55-4322-8449-0351dd9137c0
 # ╟─ca66910d-1c61-47ab-bbaa-da80dcefb462
 # ╠═3bb77367-0947-4d0b-89e9-e1c75a73388d
-# ╠═710f0258-5eb9-44d5-9b47-7a816615a23a
-# ╠═765607c2-96b3-46bf-95c4-1e1b3c49910d
+# ╠═603564a1-b813-47a9-931a-98055a21b373
+# ╟─710f0258-5eb9-44d5-9b47-7a816615a23a
 # ╟─355a63ec-3179-4f95-b704-7ecedca419f2
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
